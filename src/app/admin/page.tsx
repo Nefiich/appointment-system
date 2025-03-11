@@ -374,7 +374,7 @@ export default function CalendarDashboard() {
               <h3 className="mb-2 font-medium">3. Select Time:</h3>
               <ScrollablePills
                 items={appointmentTimeSlots}
-                onChange={(item) => setSelectedTime(item)}
+                onChange={(item) => setSelectedTime(item as any)}
               />
             </div>
 
