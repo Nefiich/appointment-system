@@ -365,7 +365,9 @@ export default function CalendarDashboard() {
 
             <div className="mb-4">
               <h3 className="mb-2 font-medium">2. Select Service:</h3>
-              <SelectableGrid onSelect={(item) => setSelectedService(item)} />
+              <SelectableGrid
+                onSelect={(item: number) => setSelectedService(item as any)}
+              />
             </div>
 
             <div className="mb-4">

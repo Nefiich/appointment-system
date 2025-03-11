@@ -174,7 +174,7 @@ const UserLoginSteps = () => {
               <div className="space-y-2">
                 <Label>Enter verification code</Label>
                 <p className="text-sm text-gray-500">
-                  We've sent a 6-digit code to {phoneNumber}
+                  Weve sent a 6-digit code to {phoneNumber}
                 </p>
               </div>
               <div className="flex justify-center space-x-2">
