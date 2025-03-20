@@ -139,7 +139,8 @@ const UserLoginSteps = () => {
         width={200}
         height={200}
       />
-      <Card className="mx-auto mt-10 w-full max-w-md">
+      <h1 className="mt-10 text-6xl font-bold">Uskoro s vama!</h1>
+      {/*<Card className="mx-auto mt-10 w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl font-semibold">
             Phone Number Verification
@@ -207,7 +208,7 @@ const UserLoginSteps = () => {
             {step === 2 ? 'Verify' : 'Next'}
           </Button>
         </CardFooter>
-      </Card>
+      </Card>*/}
     </div>
   )
 }
