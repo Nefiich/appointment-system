@@ -52,24 +52,24 @@ const UserLoginSteps = () => {
           setLoading(false)
           return
         }
-        
+
         if (!phoneNumber) {
           setError('Please enter your phone number')
           setLoading(false)
           return
         }
-        
+
         if (!validatePhoneNumber(phoneNumber)) {
           setError('Please enter a valid phone number')
           setLoading(false)
           return
         }
-        
+
         setError('')
         const { data, error } = await supabase.auth.signInWithOtp({
           phone: `+387${phoneNumber}`,
         })
-        
+
         if (error) {
           setError(error.message || 'Failed to send verification code')
           setLoading(false)
@@ -86,7 +86,7 @@ const UserLoginSteps = () => {
           setLoading(false)
           return
         }
-        
+
         const {
           data: { session, user },
           error,
@@ -95,30 +95,31 @@ const UserLoginSteps = () => {
           token: otpValue,
           type: 'sms',
         })
-        
+
         if (error) {
           setError(error.message || 'Invalid verification code')
           setLoading(false)
           return
         }
-        
+
         if (user && session) {
           // Store user data in the users table
-          const { error: profileError } = await supabase
-            .from('users')
-            .upsert({
+          const { error: profileError } = await supabase.from('users').upsert(
+            {
               user_id: user.id,
               name: name,
-              phone_number: `+387${phoneNumber}`
-            }, { 
-              onConflict: 'user_id' 
-            })
-            
+              phone_number: `+387${phoneNumber}`,
+            },
+            {
+              onConflict: 'user_id',
+            },
+          )
+
           if (profileError) {
             console.error('Error saving user profile:', profileError)
             // Continue anyway since authentication was successful
           }
-          
+
           setSubmitted(true)
           setTimeout(() => {
             router.push('/rezervacija/')
@@ -206,8 +207,10 @@ const UserLoginSteps = () => {
         width={200}
         height={200}
       />
-      <h1 className="mt-10 text-6xl font-bold">Uskoro s vama!</h1>
-      <Card className="mx-auto mt-10 w-full max-w-md">
+      <h1 className="mt-10 text-center text-4xl font-bold">
+        Rezervacije termina počinju od 2. Aprila !
+      </h1>
+      {/* <Card className="mx-auto mt-10 w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl font-semibold">
             Phone Number Verification
@@ -234,7 +237,7 @@ const UserLoginSteps = () => {
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="phone">Enter your phone number</Label>
                 <div className="flex space-x-2">
@@ -284,15 +287,15 @@ const UserLoginSteps = () => {
               Back
             </Button>
           )}
-          <Button 
-            className={step === 1 ? 'w-full' : ''} 
+          <Button
+            className={step === 1 ? 'w-full' : ''}
             onClick={handleNext}
             disabled={loading}
           >
             {loading ? 'Processing...' : step === 2 ? 'Verify' : 'Next'}
           </Button>
         </CardFooter>
-      </Card>
+      </Card>*/}
     </div>
   )
 }
