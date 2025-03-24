@@ -1,10 +1,11 @@
 'use client'
 
-import React from 'react'
-
+import React, { useEffect } from 'react'
 import { useState } from 'react'
-import { addDays, format, startOfWeek, isSameDay } from 'date-fns'
+import { addDays, format, isSameDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '@/lib/supabase'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,101 +14,40 @@ import { Calendar } from '@/components/ui/calendar'
 import SelectableGrid from '@/components/SelectableGrid'
 import { ScrollablePills } from '@/components/ScrollablePills'
 
-// Sample appointment data
-const appointments = [
-  {
-    id: 1,
-    title: 'John Smith',
-    description: '(555) 123-4567',
-    startTime: new Date(2025, 2, 11, 9, 0),
-    endTime: new Date(2025, 2, 11, 9, 30),
-    color: 'red',
-  },
-  {
-    id: 2,
-    title: 'Sarah Johnson',
-    description: '(555) 234-5678',
-    startTime: new Date(2025, 2, 11, 10, 30),
-    endTime: new Date(2025, 2, 11, 11, 0),
-    color: 'blue',
-  },
-  {
-    id: 3,
-    title: 'Michael Brown',
-    description: '(555) 345-6789',
-    startTime: new Date(2025, 2, 11, 11, 0),
-    endTime: new Date(2025, 2, 11, 11, 30),
-    color: 'green',
-  },
-  {
-    id: 4,
-    title: 'Emily Davis',
-    description: '(555) 456-7890',
-    startTime: new Date(2025, 2, 11, 13, 30),
-    endTime: new Date(2025, 2, 11, 14, 0),
-    color: 'yellow',
-  },
-  {
-    id: 5,
-    title: 'David Wilson',
-    description: '(555) 567-8901',
-    startTime: new Date(2025, 2, 12, 15, 0),
-    endTime: new Date(2025, 2, 12, 15, 30),
-    color: 'red',
-  },
-  {
-    id: 6,
-    title: 'Jennifer Taylor',
-    description: '(555) 678-9012',
-    startTime: new Date(2025, 2, 12, 9, 30),
-    endTime: new Date(2025, 2, 12, 10, 0),
-    color: 'blue',
-  },
-  {
-    id: 7,
-    title: 'Dentist appointment',
-    description: '(555) 789-0123',
-    startTime: new Date(2025, 2, 13, 11, 0),
-    endTime: new Date(2025, 2, 13, 12, 0),
-    color: 'green',
-  },
-  {
-    id: 8,
-    title: 'Team meeting',
-    description: 'Conference room B',
-    startTime: new Date(2025, 2, 13, 14, 0),
-    endTime: new Date(2025, 2, 13, 15, 0),
-    color: 'red',
-  },
-  {
-    id: 9,
-    title: 'Yoga class',
-    description: 'Downtown studio',
-    startTime: new Date(2025, 2, 13, 16, 0),
-    endTime: new Date(2025, 2, 13, 17, 0),
-    color: 'blue',
-  },
-  {
-    id: 10,
-    title: 'Weekly Status',
-    description: 'Project review',
-    startTime: new Date(2025, 2, 14, 9, 0),
-    endTime: new Date(2025, 2, 14, 10, 0),
-    color: 'red',
-  },
-]
+// Initialize Supabase client
+const supabase = createBrowserClient()
+
+// Define appointment type
+type Appointment = {
+  id: number
+  title: string
+  description: string
+  startTime: Date
+  endTime: Date
+  color: string
+  name?: string
+  service?: string
+  phone_number?: string
+}
 
 type ViewType = 'day' | 'week' | 'month' | 'year'
 
 export default function CalendarDashboard() {
+  const router = useRouter()
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [view, setView] = useState<ViewType>('week')
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   // Generate the days of the week starting from today
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentDate, i))
 
   // Generate time slots from 8 AM to 6 PM
-  const timeSlots = Array.from({ length: 11 }, (_, i) => i + 8)
+  const timeSlots = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
   const [showModal, setShowModal] = useState(false)
   const [appointmentDate, setAppointmentDate] = useState<Date | undefined>(
     new Date(),
@@ -115,9 +55,278 @@ export default function CalendarDashboard() {
   const [selectedTime, setSelectedTime] = useState(null)
   const [selectedService, setSelectedService] = useState(null)
 
+  // Check authentication status on component mount and redirect if not authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
+
+      if (error) {
+        console.error('Auth error:', error)
+        router.push('/login?message=Authentication error. Please log in again.')
+        return
+      }
+
+      if (!session) {
+        console.log('No session found, redirecting to login')
+        router.push(
+          '/login?message=You must be logged in to access the admin area',
+        )
+        return
+      }
+
+      // If we have a session, fetch appointments
+      fetchAppointments()
+    }
+
+    checkAuth()
+  }, [router])
+
+  // Fetch appointments from Supabase
+  const fetchAppointments = async () => {
+    setLoading(true)
+    try {
+      // First check if user is authenticated
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        router.push('/login?message=You must be logged in to view appointments')
+        return
+      }
+
+      const { data, error } = await supabase.from('appointments').select('*')
+
+      if (error) {
+        console.error('Error fetching appointments:', error)
+        return
+      }
+
+      // Transform the data to match our appointment structure
+      const formattedAppointments = data.map((appointment) => {
+        const startTime = new Date(appointment.appointment_time)
+        const endTime = new Date(startTime)
+        endTime.setMinutes(endTime.getMinutes() + 30) // Assuming 30-minute appointments
+
+        return {
+          id: appointment.id,
+          title: appointment.name || 'Unnamed',
+          description: appointment.phone_number || '',
+          startTime: startTime,
+          endTime: endTime,
+          color: getColorForService(appointment.service),
+          name: appointment.name,
+          service: appointment.service,
+          phone_number: appointment.phone_number,
+        }
+      })
+
+      setAppointments(formattedAppointments)
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Refetch appointments when current date changes
+  useEffect(() => {
+    const checkSessionAndFetch = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session) {
+        fetchAppointments()
+      }
+    }
+
+    checkSessionAndFetch()
+  }, [currentDate])
+
+  // Helper function to assign colors based on service
+  const getColorForService = (service: string | null) => {
+    if (service === null || service === undefined) return 'blue'
+
+    // Convert string to number if needed
+    const serviceId =
+      typeof service === 'string' ? parseInt(service, 10) : service
+
+    // Map service IDs to colors based on service type
+    const serviceColors: Record<number, string> = {
+      0: 'blue', // Brijanje - 10min
+      1: 'green', // Šišanje do kože - 10min
+      2: 'red', // Šišanje - 15min
+      3: 'yellow', // Fade - 20min
+      4: 'purple', // Brijanje glave - 15min
+      5: 'orange', // Šišanje + Brijanje - 30min
+      6: 'teal', // Fade + Brijanje - 30min
+    }
+
+    return serviceColors[serviceId] || 'gray'
+  }
+
+  // Get service duration in minutes
+  const getServiceDuration = (serviceId: string | number | null) => {
+    if (serviceId === null || serviceId === undefined) return 30
+
+    const id =
+      typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
+
+    const serviceDurations: Record<number, number> = {
+      0: 10, // Brijanje
+      1: 10, // Šišanje do kože
+      2: 15, // Šišanje
+      3: 20, // Fade
+      4: 15, // Brijanje glave
+      5: 30, // Šišanje + Brijanje
+      6: 30, // Fade + Brijanje
+    }
+
+    return serviceDurations[id] || 30
+  }
+
+  // Time manipulation helpers
+  const parseTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number)
+    return hours * 60 + minutes
+  }
+
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return `${hours.toString().padStart(2, '0')}:${mins
+      .toString()
+      .padStart(2, '0')}`
+  }
+
+  // Calculate available time slots based on existing appointments for the selected date
+  const calculateAvailableTimeSlots = (
+    date: Date,
+    existingAppointments: Appointment[],
+  ) => {
+    // Filter appointments for the selected date
+    const appointmentsForDate = existingAppointments.filter((appointment) =>
+      isSameDay(appointment.startTime, date),
+    )
+
+    const slots = []
+    const endOfDay = parseTime('18:30')
+    const startOfDay = parseTime('08:30')
+
+    // Convert appointments to a format with time and duration
+    const formattedAppointments = appointmentsForDate.map((appointment) => {
+      const time = `${appointment.startTime
+        .getHours()
+        .toString()
+        .padStart(2, '0')}:${appointment.startTime
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}`
+
+      // Get duration from service ID
+      const duration = getServiceDuration(appointment.service)
+
+      return {
+        time,
+        duration,
+      }
+    })
+
+    // Sort appointments by time
+    const sortedAppointments = [...formattedAppointments].sort(
+      (a, b) => parseTime(a.time) - parseTime(b.time),
+    )
+
+    if (sortedAppointments.length === 0) {
+      // If no appointments, generate slots every 30 minutes
+      let currentTime = startOfDay
+      while (currentTime < endOfDay) {
+        slots.push({ time: formatTime(currentTime) })
+        currentTime += 30
+      }
+    } else {
+      // Generate slots based on appointment end times
+      let currentTime = startOfDay
+
+      for (const appointment of sortedAppointments) {
+        // Add slots until this appointment starts
+        while (currentTime < parseTime(appointment.time)) {
+          slots.push({ time: formatTime(currentTime) })
+          currentTime += 30
+        }
+        // Move to the end of this appointment
+        currentTime = parseTime(appointment.time) + appointment.duration
+      }
+
+      // Add remaining slots after last appointment
+      while (currentTime < endOfDay) {
+        slots.push({ time: formatTime(currentTime) })
+        currentTime += 30
+      }
+    }
+
+    return slots
+  }
+
+  // Check if a slot is available for a specific duration
+  const isSlotAvailable = (
+    slot: string,
+    duration: number,
+    existingAppointments: Appointment[],
+  ) => {
+    const slotStart = parseTime(slot)
+    const slotEnd = slotStart + duration
+
+    if (slotEnd > parseTime('18:30')) return false
+
+    // Convert appointments to a format with time and duration
+    const formattedAppointments = existingAppointments.map((appointment) => {
+      const time = `${appointment.startTime
+        .getHours()
+        .toString()
+        .padStart(2, '0')}:${appointment.startTime
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}`
+
+      // Get duration from service ID
+      const duration = getServiceDuration(appointment.service)
+
+      return {
+        time,
+        duration,
+      }
+    })
+
+    return !formattedAppointments.some((appointment) => {
+      const appointmentStart = parseTime(appointment.time)
+      const appointmentEnd = appointmentStart + appointment.duration
+      return slotStart < appointmentEnd && slotEnd > appointmentStart
+    })
+  }
+
+  // Update time slots when date changes
+  useEffect(() => {
+    if (appointmentDate) {
+      // Filter appointments for the selected date
+      const appointmentsForDate = appointments.filter((appointment) =>
+        isSameDay(appointment.startTime, appointmentDate),
+      )
+
+      // Calculate available time slots
+      const availableSlots = calculateAvailableTimeSlots(
+        appointmentDate,
+        appointmentsForDate,
+      )
+      setAppointmentTimeSlots(availableSlots)
+    }
+  }, [appointmentDate, appointments])
+
   // Time slots for appointment selection
   const [appointmentTimeSlots, setAppointmentTimeSlots] = useState([
-    { time: '8:00' },
     { time: '8:30' },
     { time: '9:00' },
     { time: '9:30' },
@@ -137,6 +346,8 @@ export default function CalendarDashboard() {
     { time: '16:30' },
     { time: '17:00' },
     { time: '17:30' },
+    { time: '18:30' },
+    { time: '18:30' },
   ])
 
   const navigateToPrevious = () => {
@@ -175,19 +386,93 @@ export default function CalendarDashboard() {
     'MMM d, yyyy',
   )}`
 
-  const handleAddAppointment = () => {
-    // Here you would handle the actual appointment creation
-    console.log('New appointment:', {
-      date: appointmentDate,
-      time: selectedTime,
-      service: selectedService,
-    })
+  // Add this function to check if the user is authenticated before making requests
+  const checkUserAuthenticated = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) {
+      router.push(
+        '/login?message=Your session has expired. Please log in again.',
+      )
+      return false
+    }
+    return true
+  }
 
-    // Reset form and close modal
-    setShowModal(false)
-    setAppointmentDate(new Date())
-    setSelectedTime(null)
-    setSelectedService(null)
+  const handleAddAppointment = async () => {
+    if (!appointmentDate || !selectedTime || selectedService === null) {
+      return
+    }
+
+    // Check authentication first
+    const isAuthenticated = await checkUserAuthenticated()
+    if (!isAuthenticated) {
+      setAuthError('You must be logged in to add appointments')
+      return
+    }
+
+    // Parse the selected time
+    const [hours, minutes] = (selectedTime as any).time.split(':').map(Number)
+
+    // Create appointment time
+    const appointmentTime = new Date(appointmentDate)
+    appointmentTime.setHours(hours, minutes, 0, 0)
+
+    try {
+      // Insert the new appointment into Supabase
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert([
+          {
+            name: name,
+            phone_number: phone,
+            service: selectedService,
+            appointment_time: appointmentTime.toISOString(),
+            // Add user_id to link appointment to the current user
+            user_id: (await supabase.auth.getUser()).data.user?.id,
+          },
+        ])
+        .select()
+
+      if (error) {
+        console.error('Error adding appointment:', error)
+        setAuthError(`Error adding appointment: ${error.message}`)
+        return
+      }
+
+      // Add the new appointment to the local state
+      if (data && data.length > 0) {
+        const endTime = new Date(appointmentTime)
+        const serviceDuration = getServiceDuration(selectedService)
+        endTime.setMinutes(endTime.getMinutes() + serviceDuration)
+
+        const newAppointment: Appointment = {
+          id: data[0].id,
+          title: name,
+          description: phone,
+          startTime: appointmentTime,
+          endTime: endTime,
+          color: getColorForService(selectedService),
+          name: name,
+          service: selectedService.toString(),
+          phone_number: phone,
+        }
+
+        setAppointments([...appointments, newAppointment])
+      }
+
+      // Reset form and close modal
+      setShowModal(false)
+      setAppointmentDate(new Date())
+      setSelectedTime(null)
+      setSelectedService(null)
+      setName('')
+      setPhone('')
+    } catch (error) {
+      console.error('Error:', error)
+      setAuthError('An unexpected error occurred')
+    }
   }
 
   return (
@@ -221,116 +506,119 @@ export default function CalendarDashboard() {
       </header>
 
       <main className="flex-1 overflow-auto p-4">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-[auto_1fr]">
-            {/* Time labels column */}
-            <div className="pr-2 pt-16">
-              {timeSlots.map((hour) => (
-                <div key={hour} className="relative h-20 text-right">
-                  <span className="text-sm text-muted-foreground">
-                    {hour === 12
-                      ? '12 PM'
-                      : hour > 12
-                        ? `${hour - 12} PM`
-                        : `${hour} AM`}
-                  </span>
-                </div>
-              ))}
-            </div>
+        {authError && (
+          <div className="mb-4 rounded-md bg-red-100 p-4 text-red-800">
+            <p>{authError}</p>
+          </div>
+        )}
 
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 border-l">
-              {/* Day headers */}
-              {weekDays.map((day, index) => {
-                const isToday = isSameDay(day, new Date())
-                return (
-                  <div
-                    key={index}
-                    className="border-b border-r p-2 text-center"
-                  >
-                    <div className="mb-1 text-sm text-muted-foreground">
-                      {format(day, 'EEE')}
-                    </div>
-                    <div
-                      className={cn(
-                        'mx-auto flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium',
-                        isToday && 'bg-red-500 text-white',
-                      )}
-                    >
-                      {format(day, 'd')}
-                    </div>
+        {loading ? (
+          <div className="flex h-full items-center justify-center">
+            <p>Loading appointments...</p>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-7xl">
+            <div className="grid grid-cols-[auto_1fr]">
+              {/* Time labels column */}
+              <div className="pr-2 pt-16">
+                {timeSlots.map((hour) => (
+                  <div key={hour} className="relative h-32 text-right">
+                    <span className="text-sm text-muted-foreground">
+                      {hour === 12
+                        ? '12:00 PM'
+                        : hour === 12.5
+                          ? '12:30 PM'
+                          : hour > 12
+                            ? `${Math.floor(hour - 12)}:${
+                                hour % 1 === 0 ? '00' : '30'
+                              } PM`
+                            : `${Math.floor(hour)}:${
+                                hour % 1 === 0 ? '00' : '30'
+                              } AM`}
+                    </span>
                   </div>
-                )
-              })}
+                ))}
+              </div>
 
-              {/* Time slots grid */}
-              {timeSlots.map((hour) => (
-                <React.Fragment key={hour}>
-                  {weekDays.map((day, dayIndex) => {
-                    const dayAppointments = getAppointmentsForTimeSlot(
-                      day,
-                      hour,
-                    )
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7 border-l">
+                {/* ... existing day headers ... */}
 
-                    return (
-                      <div
-                        key={`${hour}-${dayIndex}`}
-                        className="relative h-20 border-b border-r"
-                      >
-                        {/* Horizontal line for the hour */}
-                        <div className="absolute left-0 right-0 top-0 border-t border-gray-100"></div>
+                {/* Time slots grid */}
+                {timeSlots.map((hour) => (
+                  <React.Fragment key={hour}>
+                    {weekDays.map((day, dayIndex) => {
+                      const dayAppointments = getAppointmentsForTimeSlot(
+                        day,
+                        hour - 1,
+                      )
 
-                        {/* Appointments */}
-                        {dayAppointments.map((appointment) => (
-                          <div
-                            key={appointment.id}
-                            className={cn(
-                              'absolute mx-1 rounded p-1 text-sm',
-                              appointment.color === 'red' &&
-                                'bg-red-100 text-red-800',
-                              appointment.color === 'blue' &&
-                                'bg-blue-100 text-blue-800',
-                              appointment.color === 'green' &&
-                                'bg-green-100 text-green-800',
-                              appointment.color === 'yellow' &&
-                                'bg-yellow-100 text-yellow-800',
-                            )}
-                            style={{
-                              top: `${
-                                (appointment.startTime.getMinutes() / 60) * 100
-                              }%`,
-                              height: `${
-                                ((appointment.endTime.getTime() -
-                                  appointment.startTime.getTime()) /
-                                  (30 * 60 * 1000)) *
-                                50
-                              }%`,
-                              width: 'calc(100% - 0.5rem)',
-                              maxHeight: '100%',
-                            }}
-                          >
-                            <div className="font-medium">
-                              {appointment.title}
+                      return (
+                        <div
+                          key={`${hour}-${dayIndex}`}
+                          className="relative h-32 border-b border-r"
+                        >
+                          {/* Horizontal line for the hour */}
+                          <div className="absolute left-0 right-0 top-0 border-t border-gray-100"></div>
+
+                          {/* Appointments */}
+                          {dayAppointments.map((appointment) => (
+                            <div
+                              key={appointment.id}
+                              className={cn(
+                                'absolute mx-1 w-[calc(100%-0.5rem)] overflow-hidden rounded p-1 text-sm',
+                                appointment.color === 'red' &&
+                                  'border border-red-200 bg-red-100 text-red-800',
+                                appointment.color === 'blue' &&
+                                  'border border-blue-200 bg-blue-100 text-blue-800',
+                                appointment.color === 'green' &&
+                                  'border border-green-200 bg-green-100 text-green-800',
+                                appointment.color === 'yellow' &&
+                                  'border border-yellow-200 bg-yellow-100 text-yellow-800',
+                                appointment.color === 'purple' &&
+                                  'border border-purple-200 bg-purple-100 text-purple-800',
+                                appointment.color === 'orange' &&
+                                  'border border-orange-200 bg-orange-100 text-orange-800',
+                                appointment.color === 'teal' &&
+                                  'border border-teal-200 bg-teal-100 text-teal-800',
+                                appointment.color === 'gray' &&
+                                  'border border-gray-200 bg-gray-100 text-gray-800',
+                              )}
+                              style={{
+                                top: `${
+                                  (appointment.startTime.getMinutes() / 60) *
+                                  100
+                                }%`,
+                                width: 'calc(100% - 0.5rem)',
+                                maxHeight: '100%',
+                              }}
+                            >
+                              <div className="truncate font-medium">
+                                {appointment.name}
+                              </div>
+                              <div className="truncate text-xs">
+                                {getServiceName(appointment.service)}
+                              </div>
+                              <div className="truncate text-xs">
+                                {appointment.phone_number}
+                              </div>
                             </div>
-                            <div className="text-xs">
-                              {appointment.description}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </React.Fragment>
-              ))}
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* Add Appointment Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex justify-center bg-black bg-opacity-50 pt-20">
-          <div className="w-full max-w-md rounded-lg bg-black p-6 shadow-lg">
+        <div className="fixed inset-0 z-50 flex justify-center overflow-auto bg-black bg-opacity-50 p-4">
+          <div className="my-8 h-fit w-full max-w-md rounded-lg bg-black p-6 pb-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold">Add New Appointment</h2>
               <Button
@@ -342,43 +630,111 @@ export default function CalendarDashboard() {
               </Button>
             </div>
 
-            <div className="mb-4">
-              <h3 className="mb-2 font-medium">1. Select Date:</h3>
-              <Calendar
-                mode="single"
-                selected={appointmentDate}
-                onSelect={setAppointmentDate}
-                className=" w-full rounded-md border "
-                classNames={{
-                  months:
-                    'flex w-full flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 flex-1',
-                  month: 'space-y-4 w-full flex flex-col',
-                  table: 'w-full h-full border-collapse space-y-1',
-                  head_row: '',
-                  row: 'w-full mt-2',
-                  cell: cn(
-                    'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected].day-range-end)]:rounded-r-md',
-                  ),
-                }}
-              />
+            <div className="pr-2">
+              <div>
+                <h3 className="mb-2 font-medium">1. Ime:</h3>
+                <input
+                  className="mb-6 w-full rounded-md border bg-inherit px-4 py-2"
+                  name="name"
+                  placeholder="Sinbad Mehic"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <h3 className="mb-2 font-medium">2. Broj telefona:</h3>
+                <input
+                  className="mb-6 w-full rounded-md border bg-inherit px-4 py-2"
+                  name="phone"
+                  placeholder="061 123 456"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <h3 className="mb-2 font-medium">3. Select Date:</h3>
+                <Calendar
+                  mode="single"
+                  selected={appointmentDate}
+                  onSelect={(date) => {
+                    setAppointmentDate(date)
+                    // Reset selected time when date changes
+                    setSelectedTime(null)
+                  }}
+                  className=" w-full rounded-md border "
+                  disabled={{
+                    before: new Date(),
+                    after: addDays(new Date(), 7),
+                  }}
+                  classNames={{
+                    months:
+                      'flex w-full flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 flex-1',
+                    month: 'space-y-4 w-full flex flex-col',
+                    table: 'w-full h-full border-collapse space-y-1',
+                    head_row: '',
+                    row: 'w-full mt-2',
+                    cell: cn(
+                      'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected].day-range-end)]:rounded-r-md',
+                    ),
+                  }}
+                />
+              </div>
             </div>
 
             <div className="mb-4">
-              <h3 className="mb-2 font-medium">2. Select Service:</h3>
+              <h3 className="mb-2 font-medium">4. Select Service:</h3>
               <SelectableGrid
                 onSelect={(item: number) => setSelectedService(item as any)}
               />
             </div>
 
             <div className="mb-4">
-              <h3 className="mb-2 font-medium">3. Select Time:</h3>
+              <h3 className="mb-2 font-medium">5. Select Time:</h3>
               <ScrollablePills
-                items={appointmentTimeSlots}
+                items={appointmentTimeSlots.filter((slot) => {
+                  // Only show slots that are available for the selected service duration
+                  if (selectedService === null) return true
+
+                  const serviceDuration = getServiceDuration(selectedService)
+                  const appointmentsForDate = appointments.filter(
+                    (appointment) =>
+                      appointmentDate &&
+                      isSameDay(appointment.startTime, appointmentDate),
+                  )
+
+                  return isSlotAvailable(
+                    slot.time,
+                    serviceDuration,
+                    appointmentsForDate,
+                  )
+                })}
                 onChange={(item) => setSelectedTime(item as any)}
               />
+              {selectedService !== null &&
+                appointmentTimeSlots.length > 0 &&
+                appointmentTimeSlots.filter((slot) => {
+                  const serviceDuration = getServiceDuration(selectedService)
+                  const appointmentsForDate = appointments.filter(
+                    (appointment) =>
+                      appointmentDate &&
+                      isSameDay(appointment.startTime, appointmentDate),
+                  )
+                  return isSlotAvailable(
+                    slot.time,
+                    serviceDuration,
+                    appointmentsForDate,
+                  )
+                }).length === 0 && (
+                  <p className="mt-2 text-sm text-red-500">
+                    No available slots for this service on the selected date.
+                    Please choose another date.
+                  </p>
+                )}
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2 border-t pt-2">
               <Button variant="outline" onClick={() => setShowModal(false)}>
                 Cancel
               </Button>
@@ -396,4 +752,23 @@ export default function CalendarDashboard() {
       )}
     </div>
   )
+}
+
+// Helper function to get service name from service ID
+const getServiceName = (serviceId: string | null) => {
+  if (serviceId === null || serviceId === undefined) return 'Unknown service'
+
+  const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
+
+  const serviceNames: Record<number, string> = {
+    0: 'Brijanje',
+    1: 'Šišanje do kože',
+    2: 'Šišanje',
+    3: 'Fade',
+    4: 'Brijanje glave',
+    5: 'Šišanje + Brijanje',
+    6: 'Fade + Brijanje',
+  }
+
+  return serviceNames[id] || 'Unknown service'
 }

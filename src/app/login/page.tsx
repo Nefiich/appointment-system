@@ -1,13 +1,26 @@
 import Link from 'next/link'
 import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createServerClient } from '@/utils/supabase'
+import { createServerClient } from '@/lib/supabase'
 
-export default function Login({
+export default async function Login({
   searchParams,
 }: {
   searchParams: { message: string }
 }) {
+  // Check if user is already authenticated
+  const cookieStore = cookies()
+  const supabase = createServerClient(cookieStore)
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  // If session exists, redirect to appointment page
+  if (session) {
+    redirect('/admin')
+  }
+
   const signIn = async (formData: FormData) => {
     'use server'
 
@@ -25,7 +38,7 @@ export default function Login({
       return redirect('/login?message=Could not authenticate user')
     }
 
-    return redirect('/')
+    return redirect('/admin')
   }
 
   const signUp = async (formData: FormData) => {
@@ -53,7 +66,7 @@ export default function Login({
   }
 
   return (
-    <div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
+    <div className="mx-auto flex h-full w-screen flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
       <Link
         href="/"
         className="bg-btn-background hover:bg-btn-background-hover group absolute left-8 top-8 flex items-center rounded-md px-4 py-2 text-sm text-foreground no-underline"

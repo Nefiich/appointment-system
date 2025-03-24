@@ -1,36 +1,36 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { createMiddlewareClient } from '@/utils/supabase'
+import { NextRequest, NextResponse } from 'next/server'
+import { createMiddlewareClient } from '@/lib/supabase'
 
 export async function middleware(request: NextRequest) {
   try {
-    // This `try/catch` block is only here for the interactive tutorial.
-    // Feel free to remove once you have Supabase connected.
+    // Use the client creator from lib
     const { supabase, response } = createMiddlewareClient(request)
-
+    
     // Refresh session if expired - required for Server Components
-    // https://supabase.com/docs/guides/auth/auth-helpers/nextjs#managing-session-with-middleware
     await supabase.auth.getSession()
-
+    
+    // Check if accessing admin routes without authentication
+    const url = request.nextUrl.clone()
+    if (url.pathname.startsWith('/admin')) {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        url.pathname = '/login'
+        url.searchParams.set('message', 'Please login to access the admin area')
+        return NextResponse.redirect(url)
+      }
+    }
+    
     return response
   } catch (e) {
-    // If you are here, a Supabase client could not be created!
-    // This is likely because you have not set up environment variables.
-    // Check out http://localhost:3000 for Next Steps.
+    console.error('Middleware error:', e)
     return NextResponse.next({
       request: { headers: request.headers },
     })
   }
 }
 
+// Add a config to specify which routes this middleware should run on
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/admin/:path*', '/api/admin/:path*'],
 }

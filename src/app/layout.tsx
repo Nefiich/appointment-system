@@ -29,7 +29,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <title>Rezervacije Brico</title>
+        <title>Sinbad Barbershop | Rezervacije</title>
       </head>
       <body className="bg-background text-foreground">
         <NextTopLoader showSpinner={false} height={2} color="#2acf80" />
@@ -40,7 +40,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ReactQueryProvider>
-            <main className="min-h-screenr">{children}</main>
+            <main className="h-screen">{children}</main>
             <ReactQueryDevtools initialIsOpen={false} />
           </ReactQueryProvider>
         </ThemeProvider>

@@ -24,10 +24,13 @@ const SelectableGrid = ({ onSelect = () => {} }: SelectableGridProps) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
 
   const items = [
-    { title: '15min', content: 'Šišanje' },
-    { title: '20min', content: 'Fade' },
-    { title: '30min', content: 'Šišanje + Brijanje' },
-    { title: '30min', content: 'Fade + Brijanje' },
+    { id: 0, title: '10min', content: 'Brijanje' },
+    { id: 1, title: '10min', content: 'Šišanje do kože' },
+    { id: 2, title: '15min', content: 'Šišanje' },
+    { id: 3, title: '20min', content: 'Fade' },
+    { id: 4, title: '15min', content: 'Brijanje glave' },
+    { id: 5, title: '30min', content: 'Šišanje + Brijanje' },
+    { id: 6, title: '30min', content: 'Fade + Brijanje' },
   ]
 
   return (

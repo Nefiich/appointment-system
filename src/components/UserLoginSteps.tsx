@@ -15,12 +15,16 @@ import { AlertCircle, CheckCircle2, Phone } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '@/lib/supabase'
 
 const UserLoginSteps = () => {
   const [step, setStep] = useState(1)
+  const [name, setName] = useState('') // Add name state
   const [phoneNumber, setPhoneNumber] = useState('')
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false) // Add loading state
+  const supabase = createBrowserClient()
 
   // OTP related states
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
@@ -39,34 +43,95 @@ const UserLoginSteps = () => {
     return phoneRegex.test(number)
   }
 
-  const handleNext = () => {
-    console.log('IN HERE step ! ', step)
-    if (step === 1) {
-      if (!phoneNumber) {
-        setError('Please enter your phone number')
-        return
-      }
-      if (!validatePhoneNumber(phoneNumber)) {
-        setError('Please enter a valid phone number')
-        return
-      }
-      setError('')
-      setStep(2)
-    } else if (step === 2) {
-      // Validate OTP
-      const otpValue = otp.join('')
+  const handleNext = async () => {
+    setLoading(true)
+    try {
+      if (step === 1) {
+        if (!name) {
+          setError('Please enter your name')
+          setLoading(false)
+          return
+        }
+        
+        if (!phoneNumber) {
+          setError('Please enter your phone number')
+          setLoading(false)
+          return
+        }
+        
+        if (!validatePhoneNumber(phoneNumber)) {
+          setError('Please enter a valid phone number')
+          setLoading(false)
+          return
+        }
+        
+        setError('')
+        const { data, error } = await supabase.auth.signInWithOtp({
+          phone: `+387${phoneNumber}`,
+        })
+        
+        if (error) {
+          setError(error.message || 'Failed to send verification code')
+          setLoading(false)
+          return
+        }
 
-      console.log('IN HERE: ', otpValue)
-      if (otpValue.length !== 6) {
-        setError('Please enter a valid 6-digit OTP')
-        return
-      } else {
-        router.push('/user/')
-        console.log('HERE!')
+        setStep(2)
+      } else if (step === 2) {
+        // Validate OTP
+        const otpValue = otp.join('')
+
+        if (otpValue.length !== 6) {
+          setError('Please enter a valid 6-digit OTP')
+          setLoading(false)
+          return
+        }
+        
+        const {
+          data: { session, user },
+          error,
+        } = await supabase.auth.verifyOtp({
+          phone: `+387${phoneNumber}`,
+          token: otpValue,
+          type: 'sms',
+        })
+        
+        if (error) {
+          setError(error.message || 'Invalid verification code')
+          setLoading(false)
+          return
+        }
+        
+        if (user && session) {
+          // Store user data in the users table
+          const { error: profileError } = await supabase
+            .from('users')
+            .upsert({
+              user_id: user.id,
+              name: name,
+              phone_number: `+387${phoneNumber}`
+            }, { 
+              onConflict: 'user_id' 
+            })
+            
+          if (profileError) {
+            console.error('Error saving user profile:', profileError)
+            // Continue anyway since authentication was successful
+          }
+          
+          setSubmitted(true)
+          setTimeout(() => {
+            router.push('/rezervacija/')
+          }, 1500)
+        } else {
+          setError('Verification failed. Please try again.')
+        }
       }
-      // Mock OTP verification
-      setError('')
-      setSubmitted(true)
+    } catch (err) {
+      console.error('Authentication error:', err)
+      setError('An unexpected error occurred. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -77,6 +142,7 @@ const UserLoginSteps = () => {
 
   const handleReset = () => {
     setStep(1)
+    setName('') // Reset name
     setPhoneNumber('')
     setOtp(['', '', '', '', '', ''])
     setError('')
@@ -120,6 +186,7 @@ const UserLoginSteps = () => {
           <p className="text-center">
             Your phone number has been successfully verified!
           </p>
+          <p className="text-center text-sm text-gray-500">Welcome, {name}!</p>
           <p className="text-center text-sm text-gray-500">{phoneNumber}</p>
         </CardContent>
         <CardFooter>
@@ -140,7 +207,7 @@ const UserLoginSteps = () => {
         height={200}
       />
       <h1 className="mt-10 text-6xl font-bold">Uskoro s vama!</h1>
-      {/*<Card className="mx-auto mt-10 w-full max-w-md">
+      <Card className="mx-auto mt-10 w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl font-semibold">
             Phone Number Verification
@@ -156,19 +223,32 @@ const UserLoginSteps = () => {
           )}
 
           {step === 1 && (
-            <div className="space-y-2">
-              <Label htmlFor="phone">Enter your phone number</Label>
-              <div className="flex space-x-2">
-                <Phone className="mt-3 h-4 w-4" />
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="name">Enter your name</Label>
                 <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+1234567890"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                 />
               </div>
-            </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="phone">Enter your phone number</Label>
+                <div className="flex space-x-2">
+                  <Phone className="mt-3 h-4 w-4" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+1234567890"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           {step === 2 && (
@@ -200,15 +280,19 @@ const UserLoginSteps = () => {
         </CardContent>
         <CardFooter className="flex justify-between">
           {step === 2 && (
-            <Button variant="outline" onClick={handleBack}>
+            <Button variant="outline" onClick={handleBack} disabled={loading}>
               Back
             </Button>
           )}
-          <Button className={step === 1 ? 'w-full' : ''} onClick={handleNext}>
-            {step === 2 ? 'Verify' : 'Next'}
+          <Button 
+            className={step === 1 ? 'w-full' : ''} 
+            onClick={handleNext}
+            disabled={loading}
+          >
+            {loading ? 'Processing...' : step === 2 ? 'Verify' : 'Next'}
           </Button>
         </CardFooter>
-      </Card>*/}
+      </Card>
     </div>
   )
 }

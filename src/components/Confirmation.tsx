@@ -20,6 +20,7 @@ export function Confirmation({
   onCancel,
   onBack,
 }: ConfirmationProps) {
+  console.log('SSS: ', service)
   return (
     <div className="mx-auto max-w-md p-6">
       <div className="mb-6 flex items-center">
@@ -41,14 +42,14 @@ export function Confirmation({
           </div>
 
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Vreme:</span>
+            <span className="text-muted-foreground">Vrijme:</span>
             <span className="font-medium">{time.time || 'Nije izabrano'}</span>
           </div>
 
           <div className="flex justify-between">
             <span className="text-muted-foreground">Usluga:</span>
             <span className="font-medium">
-              {service?.title || 'Nije izabrano'}
+              {service ? service : 'Nije izabrano'}
             </span>
           </div>
         </div>
