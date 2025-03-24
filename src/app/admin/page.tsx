@@ -596,8 +596,34 @@ export default function CalendarDashboard() {
                               <div className="truncate font-medium">
                                 {appointment.name}
                               </div>
-                              <div className="truncate text-xs">
-                                {getServiceName(appointment.service)}
+
+                              <div className="flex items-center">
+                                <div className="mr-2 truncate text-xs">
+                                  {getServiceName(appointment.service)}
+                                </div>
+                                <div>
+                                  {appointment.startTime
+                                    .getHours()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                  :
+                                  {appointment.startTime
+                                    .getMinutes()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                </div>
+                                <p>-</p>
+                                <div>
+                                  {appointment.endTime
+                                    .getHours()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                  :
+                                  {appointment.endTime
+                                    .getMinutes()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                </div>
                               </div>
                               <div className="truncate text-xs">
                                 {appointment.phone_number}
