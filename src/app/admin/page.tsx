@@ -28,6 +28,7 @@ type Appointment = {
   name?: string
   service?: string
   phone_number?: string
+  user_id?: string
 }
 
 type ViewType = 'day' | 'week' | 'month' | 'year'
@@ -42,6 +43,10 @@ export default function CalendarDashboard() {
   const [phone, setPhone] = useState('')
   const [authChecked, setAuthChecked] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false)
 
   // Generate the days of the week starting from today
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentDate, i))
@@ -84,7 +89,11 @@ export default function CalendarDashboard() {
     checkAuth()
   }, [router])
 
-  // Fetch appointments from Supabase
+  // Replace the fetchAppointments function with this updated version
+
+  // Add this debugging code inside the fetchAppointments function in your admin dashboard
+  // just before the setAppointments call
+
   const fetchAppointments = async () => {
     setLoading(true)
     try {
@@ -105,11 +114,29 @@ export default function CalendarDashboard() {
         return
       }
 
+      // Debug log the raw data
+      console.log('Raw appointments from DB:', data)
+
       // Transform the data to match our appointment structure
       const formattedAppointments = data.map((appointment) => {
+        // Create Date objects from the ISO string
         const startTime = new Date(appointment.appointment_time)
         const endTime = new Date(startTime)
-        endTime.setMinutes(endTime.getMinutes() + 30) // Assuming 30-minute appointments
+        endTime.setMinutes(
+          endTime.getMinutes() + getServiceDuration(appointment.service),
+        )
+
+        // Debug log each appointment conversion
+        console.log(`Appointment ID ${appointment.id}:`)
+        console.log(`  Original time: ${appointment.appointment_time}`)
+        console.log(`  Converted startTime: ${startTime.toLocaleString()}`)
+        console.log(
+          `  startTime day: ${startTime.getDate()}, hour: ${startTime.getHours()}, min: ${startTime.getMinutes()}`,
+        )
+        console.log(
+          `  currentDate for comparison: ${currentDate.toLocaleString()}`,
+        )
+        console.log(`  isSameDay test: ${isSameDay(startTime, currentDate)}`)
 
         return {
           id: appointment.id,
@@ -121,14 +148,88 @@ export default function CalendarDashboard() {
           name: appointment.name,
           service: appointment.service,
           phone_number: appointment.phone_number,
+          user_id: appointment.user_id,
         }
       })
+
+      // Log the formatted appointments
+      console.log('Formatted appointments:', formattedAppointments)
 
       setAppointments(formattedAppointments)
     } catch (error) {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Add this debugging to the getAppointmentsForTimeSlot function
+  const getAppointmentsForTimeSlot = (day: Date, hour: number) => {
+    const filteredAppointments = appointments.filter((appointment) => {
+      const sameDay = isSameDay(appointment.startTime, day)
+      const sameHour = appointment.startTime.getHours() === hour
+
+      if (sameDay && appointment.startTime.getHours() === hour) {
+        console.log(
+          `Found appointment for ${day.toLocaleDateString()} at ${hour}:00 -`,
+          appointment,
+        )
+      }
+
+      return sameDay && sameHour
+    })
+
+    console.log(
+      `Time slot ${day.toLocaleDateString()} ${hour}:00 has ${filteredAppointments.length} appointments`,
+    )
+    return filteredAppointments
+  }
+
+  // Also, check the weekDays calculation in the render function
+  // Add this right after the weekDays calculation
+  useEffect(() => {
+    console.log('Current date:', currentDate.toLocaleString())
+    console.log('Week days calculated:')
+    weekDays.forEach((day, index) => {
+      console.log(`  Day ${index}: ${day.toLocaleDateString()}`)
+    })
+  }, [currentDate])
+
+  const fetchUserAppointments = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('appointment_time', new Date().toISOString())
+        .order('appointment_time', { ascending: true })
+        .limit(3)
+
+      if (error) {
+        console.error('Error fetching user appointments:', error)
+        setError('Failed to load your appointments. Please try again.')
+        return
+      }
+
+      // Transform the data to match our appointment structure
+      const formattedAppointments = data.map((appointment) => {
+        // Create a new Date object from the ISO string
+        // Date constructor automatically converts UTC to local time zone
+        const appointmentTime = new Date(appointment.appointment_time)
+
+        return {
+          id: appointment.id,
+          name: appointment.name || 'Unnamed',
+          phone_number: appointment.phone_number || '',
+          service: appointment.service,
+          appointment_time: appointmentTime,
+        }
+      })
+
+      setUserAppointments(formattedAppointments)
+    } catch (error) {
+      console.error('Error:', error)
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
     }
   }
 
@@ -346,7 +447,7 @@ export default function CalendarDashboard() {
     { time: '16:30' },
     { time: '17:00' },
     { time: '17:30' },
-    { time: '18:30' },
+    { time: '18:00' },
     { time: '18:30' },
   ])
 
@@ -370,16 +471,6 @@ export default function CalendarDashboard() {
     setCurrentDate(new Date())
   }
 
-  // Get appointments for a specific day and time
-  const getAppointmentsForTimeSlot = (day: Date, hour: number) => {
-    return appointments.filter((appointment) => {
-      return (
-        isSameDay(appointment.startTime, day) &&
-        appointment.startTime.getHours() === hour
-      )
-    })
-  }
-
   // Get the month and year for the header
   const dateRange = `${format(currentDate, 'MMM d')} - ${format(
     addDays(currentDate, 6),
@@ -400,6 +491,9 @@ export default function CalendarDashboard() {
     return true
   }
 
+  // Updates for the admin dashboard to fix timezone issues
+
+  // 1. Update the handleAddAppointment function
   const handleAddAppointment = async () => {
     if (!appointmentDate || !selectedTime || selectedService === null) {
       return
@@ -408,7 +502,7 @@ export default function CalendarDashboard() {
     // Check authentication first
     const isAuthenticated = await checkUserAuthenticated()
     if (!isAuthenticated) {
-      setAuthError('You must be logged in to add appointments')
+      setAuthError('Morate biti prijavljeni da biste dodali termin')
       return
     }
 
@@ -419,6 +513,14 @@ export default function CalendarDashboard() {
     const appointmentTime = new Date(appointmentDate)
     appointmentTime.setHours(hours, minutes, 0, 0)
 
+    // Adjust for timezone before storing
+    const timezoneOffset = appointmentTime.getTimezoneOffset()
+    const adjustedTime = new Date(appointmentTime)
+    adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
+
+    console.log('Local time selected:', appointmentTime.toLocaleString())
+    console.log('Adjusted time for storage:', adjustedTime.toISOString())
+
     try {
       // Insert the new appointment into Supabase
       const { data, error } = await supabase
@@ -428,7 +530,7 @@ export default function CalendarDashboard() {
             name: name,
             phone_number: phone,
             service: selectedService,
-            appointment_time: appointmentTime.toISOString(),
+            appointment_time: adjustedTime.toISOString(),
             // Add user_id to link appointment to the current user
             user_id: (await supabase.auth.getUser()).data.user?.id,
           },
@@ -436,8 +538,8 @@ export default function CalendarDashboard() {
         .select()
 
       if (error) {
-        console.error('Error adding appointment:', error)
-        setAuthError(`Error adding appointment: ${error.message}`)
+        console.error('Greška prilikom dodavanja termina:', error)
+        setAuthError(`Greška prilikom dodavanja termina: ${error.message}`)
         return
       }
 
@@ -447,7 +549,7 @@ export default function CalendarDashboard() {
         const serviceDuration = getServiceDuration(selectedService)
         endTime.setMinutes(endTime.getMinutes() + serviceDuration)
 
-        const newAppointment: Appointment = {
+        const newAppointment = {
           id: data[0].id,
           title: name,
           description: phone,
@@ -457,6 +559,7 @@ export default function CalendarDashboard() {
           name: name,
           service: selectedService.toString(),
           phone_number: phone,
+          user_id: data[0].user_id,
         }
 
         setAppointments([...appointments, newAppointment])
@@ -471,8 +574,128 @@ export default function CalendarDashboard() {
       setPhone('')
     } catch (error) {
       console.error('Error:', error)
-      setAuthError('An unexpected error occurred')
+      setAuthError('Došlo je do neočekivane greške')
     }
+  }
+
+  // Cancel appointment handler
+  const cancelAppointment = async (appointmentId: number) => {
+    try {
+      // First, get the appointment details before deleting
+      const { data: appointmentData, error: fetchError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', appointmentId)
+        .single()
+
+      if (fetchError) {
+        console.error('Error fetching appointment details:', fetchError)
+        setAuthError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
+        return false
+      }
+
+      console.log('Cancelling appointment:', appointmentData)
+
+      // Insert into canceled_appointments table
+      const { error: insertError } = await supabase
+        .from('canceled_appointments')
+        .insert([
+          {
+            original_id: appointmentData.id,
+            name: appointmentData.name,
+            phone_number: appointmentData.phone_number,
+            service: appointmentData.service,
+            appointment_time: appointmentData.appointment_time,
+            user_id: appointmentData.user_id,
+            canceled_by_admin: true, // Add flag to indicate admin cancellation
+          },
+        ])
+
+      if (insertError) {
+        console.error('Error recording cancellation:', insertError)
+        // Continue with deletion even if recording fails
+      }
+
+      // Delete from appointments table
+      const { data: deleteData, error: deleteError } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId)
+        .select()
+
+      console.log('Delete response:', deleteData, deleteError)
+
+      if (deleteError) {
+        console.error('Error cancelling appointment:', deleteError)
+        setAuthError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
+        return false
+      }
+
+      // Refresh appointments
+      await fetchAppointments()
+
+      return true
+    } catch (error) {
+      console.error('Error:', error)
+      setAuthError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
+      return false
+    }
+  }
+
+  // Handle appointment cancellation confirm
+  const handleCancelConfirm = async () => {
+    if (!selectedAppointment) return
+
+    try {
+      console.log(
+        'Starting cancellation process for appointment ID:',
+        selectedAppointment.id,
+      )
+      const success = await cancelAppointment(selectedAppointment.id)
+
+      if (success) {
+        alert('Termin je uspješno otkazan')
+        // Remove the appointment from the local state as well
+        setAppointments(
+          appointments.filter((app) => app.id !== selectedAppointment.id),
+        )
+      } else {
+        alert('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
+      }
+    } catch (error) {
+      console.error('Error in handleCancelConfirm:', error)
+      alert('Došlo je do greške prilikom otkazivanja. Molimo pokušajte ponovo.')
+    } finally {
+      setShowCancelConfirmation(false)
+      setShowAppointmentModal(false)
+      setSelectedAppointment(null)
+    }
+  }
+
+  // Get service name from service ID
+  const getServiceName = (serviceId: string | null) => {
+    if (serviceId === null || serviceId === undefined) return 'Unknown service'
+
+    const id =
+      typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
+
+    const serviceNames: Record<number, string> = {
+      0: 'Brijanje',
+      1: 'Šišanje do kože',
+      2: 'Šišanje',
+      3: 'Fade',
+      4: 'Brijanje glave',
+      5: 'Šišanje + Brijanje',
+      6: 'Fade + Brijanje',
+    }
+
+    return serviceNames[id] || 'Unknown service'
+  }
+
+  // Handle appointment click
+  const handleAppointmentClick = (appointment: Appointment) => {
+    setSelectedAppointment(appointment)
+    setShowAppointmentModal(true)
   }
 
   return (
@@ -496,7 +719,7 @@ export default function CalendarDashboard() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button variant="outline" onClick={navigateToToday}>
-              Today
+              Danas
             </Button>
             <Button variant="outline" size="icon" onClick={navigateToNext}>
               <ChevronRight className="h-4 w-4" />
@@ -514,7 +737,7 @@ export default function CalendarDashboard() {
 
         {loading ? (
           <div className="flex h-full items-center justify-center">
-            <p>Loading appointments...</p>
+            <p>Učitavanje termina...</p>
           </div>
         ) : (
           <div className="mx-auto max-w-7xl">
@@ -542,7 +765,15 @@ export default function CalendarDashboard() {
 
               {/* Calendar grid */}
               <div className="grid grid-cols-7 border-l">
-                {/* ... existing day headers ... */}
+                {/* Day headers */}
+                {weekDays.map((day, i) => (
+                  <div key={i} className="border-b border-r p-2 text-center">
+                    <div className="font-semibold">{format(day, 'EEE')}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {format(day, 'd')}
+                    </div>
+                  </div>
+                ))}
 
                 {/* Time slots grid */}
                 {timeSlots.map((hour) => (
@@ -550,7 +781,7 @@ export default function CalendarDashboard() {
                     {weekDays.map((day, dayIndex) => {
                       const dayAppointments = getAppointmentsForTimeSlot(
                         day,
-                        hour - 1,
+                        hour,
                       )
 
                       return (
@@ -566,7 +797,7 @@ export default function CalendarDashboard() {
                             <div
                               key={appointment.id}
                               className={cn(
-                                'absolute mx-1 w-[calc(100%-0.5rem)] overflow-hidden rounded p-1 text-sm',
+                                'absolute mx-1 w-[calc(100%-0.5rem)] cursor-pointer overflow-hidden rounded p-1 text-sm transition-opacity hover:opacity-80',
                                 appointment.color === 'red' &&
                                   'border border-red-200 bg-red-100 text-red-800',
                                 appointment.color === 'blue' &&
@@ -591,42 +822,49 @@ export default function CalendarDashboard() {
                                 }%`,
                                 width: 'calc(100% - 0.5rem)',
                                 maxHeight: '100%',
+                                height: `${
+                                  (getServiceDuration(appointment.service) /
+                                    60) *
+                                  100
+                                }%`,
                               }}
+                              onClick={() =>
+                                handleAppointmentClick(appointment)
+                              }
                             >
                               <div className="truncate font-medium">
                                 {appointment.name}
                               </div>
 
-                              <div className="flex items-center">
-                                <div className="mr-2 truncate text-xs">
+                              <div className="flex items-center text-xs">
+                                <div className="mr-2 truncate">
                                   {getServiceName(appointment.service)}
                                 </div>
-                                <div>
-                                  {appointment.startTime
-                                    .getHours()
-                                    .toString()
-                                    .padStart(2, '0')}
-                                  :
-                                  {appointment.startTime
-                                    .getMinutes()
-                                    .toString()
-                                    .padStart(2, '0')}
-                                </div>
-                                <p>-</p>
-                                <div>
-                                  {appointment.endTime
-                                    .getHours()
-                                    .toString()
-                                    .padStart(2, '0')}
-                                  :
-                                  {appointment.endTime
-                                    .getMinutes()
-                                    .toString()
-                                    .padStart(2, '0')}
-                                </div>
                               </div>
-                              <div className="truncate text-xs">
-                                {appointment.phone_number}
+                              <div className="flex items-center text-xs">
+                                <span>
+                                  {appointment.startTime
+                                    .getHours()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                  :
+                                  {appointment.startTime
+                                    .getMinutes()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                </span>
+                                <span className="mx-1">-</span>
+                                <span>
+                                  {appointment.endTime
+                                    .getHours()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                  :
+                                  {appointment.endTime
+                                    .getMinutes()
+                                    .toString()
+                                    .padStart(2, '0')}
+                                </span>
                               </div>
                             </div>
                           ))}
@@ -646,7 +884,7 @@ export default function CalendarDashboard() {
         <div className="fixed inset-0 z-50 flex justify-center overflow-auto bg-black bg-opacity-50 p-4">
           <div className="my-8 h-fit w-full max-w-md rounded-lg bg-black p-6 pb-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Add New Appointment</h2>
+              <h2 className="text-xl font-bold">Dodaj novi termin</h2>
               <Button
                 variant="ghost"
                 size="icon"
@@ -680,7 +918,7 @@ export default function CalendarDashboard() {
               </div>
 
               <div className="mb-4">
-                <h3 className="mb-2 font-medium">3. Select Date:</h3>
+                <h3 className="mb-2 font-medium">3. Odaberi datum:</h3>
                 <Calendar
                   mode="single"
                   selected={appointmentDate}
@@ -692,7 +930,7 @@ export default function CalendarDashboard() {
                   className=" w-full rounded-md border "
                   disabled={{
                     before: new Date(),
-                    after: addDays(new Date(), 7),
+                    after: addDays(new Date(), 30),
                   }}
                   classNames={{
                     months:
@@ -710,14 +948,14 @@ export default function CalendarDashboard() {
             </div>
 
             <div className="mb-4">
-              <h3 className="mb-2 font-medium">4. Select Service:</h3>
+              <h3 className="mb-2 font-medium">4. Odaberi uslugu:</h3>
               <SelectableGrid
                 onSelect={(item: number) => setSelectedService(item as any)}
               />
             </div>
 
             <div className="mb-4">
-              <h3 className="mb-2 font-medium">5. Select Time:</h3>
+              <h3 className="mb-2 font-medium">5. Izaberite vrijeme:</h3>
               <ScrollablePills
                 items={appointmentTimeSlots.filter((slot) => {
                   // Only show slots that are available for the selected service duration
@@ -754,15 +992,15 @@ export default function CalendarDashboard() {
                   )
                 }).length === 0 && (
                   <p className="mt-2 text-sm text-red-500">
-                    No available slots for this service on the selected date.
-                    Please choose another date.
+                    Nema dostupnih termina za ovu uslugu na odabrani datum.
+                    Molimo odaberite drugi datum.
                   </p>
                 )}
             </div>
 
             <div className="mt-4 flex justify-end gap-2 border-t pt-2">
               <Button variant="outline" onClick={() => setShowModal(false)}>
-                Cancel
+                Odustani
               </Button>
               <Button
                 onClick={handleAddAppointment}
@@ -770,7 +1008,121 @@ export default function CalendarDashboard() {
                   !appointmentDate || !selectedTime || selectedService === null
                 }
               >
-                Add Appointment
+                Dodaj termin
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Appointment Modal */}
+      {showAppointmentModal && selectedAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-black">Detalji termina</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setShowAppointmentModal(false)
+                  setSelectedAppointment(null)
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="mb-4 space-y-3">
+              <div className="rounded-md bg-gray-50 p-3">
+                <h3 className="text-sm font-medium text-gray-500">Klijent</h3>
+                <p className="text-black">{selectedAppointment.name}</p>
+              </div>
+
+              <div className="rounded-md bg-gray-50 p-3">
+                <h3 className="text-sm font-medium text-gray-500">
+                  Broj telefona
+                </h3>
+                <p className="text-black">{selectedAppointment.phone_number}</p>
+              </div>
+
+              <div className="rounded-md bg-gray-50 p-3">
+                <h3 className="text-sm font-medium text-gray-500">Usluga</h3>
+                <p className="text-black">
+                  {getServiceName(selectedAppointment.service)}
+                </p>
+              </div>
+
+              <div className="rounded-md bg-gray-50 p-3">
+                <h3 className="text-sm font-medium text-gray-500">Date</h3>
+                <p className="text-black">
+                  {selectedAppointment.startTime.toLocaleDateString('bs')}
+                </p>
+              </div>
+
+              <div className="rounded-md bg-gray-50 p-3">
+                <h3 className="text-sm font-medium text-gray-500">Vrijeme</h3>
+                <p className="text-black">
+                  {selectedAppointment.startTime.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}{' '}
+                  -
+                  {selectedAppointment.endTime.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2 border-t pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAppointmentModal(false)
+                  setSelectedAppointment(null)
+                }}
+              >
+                Zatvori
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setShowCancelConfirmation(true)}
+              >
+                Otkaži termin
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Dialog */}
+      {showCancelConfirmation && selectedAppointment && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+            <h2 className="mb-4 text-xl font-bold text-black">Otkaži termin</h2>
+            <p className="mb-4 text-black">
+              Jeste li sigurni da želite otkazati termin za{' '}
+              {selectedAppointment.name} dana{' '}
+              {selectedAppointment.startTime.toLocaleDateString('bs')} u{' '}
+              {selectedAppointment.startTime.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              ?
+            </p>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCancelConfirmation(false)
+                }}
+              >
+                Ne, zadrži
+              </Button>
+              <Button variant="destructive" onClick={handleCancelConfirm}>
+                Da, Otkaži
               </Button>
             </div>
           </div>
@@ -778,23 +1130,4 @@ export default function CalendarDashboard() {
       )}
     </div>
   )
-}
-
-// Helper function to get service name from service ID
-const getServiceName = (serviceId: string | null) => {
-  if (serviceId === null || serviceId === undefined) return 'Unknown service'
-
-  const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-
-  const serviceNames: Record<number, string> = {
-    0: 'Brijanje',
-    1: 'Šišanje do kože',
-    2: 'Šišanje',
-    3: 'Fade',
-    4: 'Brijanje glave',
-    5: 'Šišanje + Brijanje',
-    6: 'Fade + Brijanje',
-  }
-
-  return serviceNames[id] || 'Unknown service'
 }

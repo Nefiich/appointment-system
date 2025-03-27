@@ -7,7 +7,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 import { Confirmation } from '@/components/Confirmation'
-import { addDays, isSameDay } from 'date-fns'
+import { addDays, format, isSameDay, isAfter, isBefore, getDay } from 'date-fns'
 import { createBrowserClient } from '@/lib/supabase'
 
 // Initialize Supabase client
@@ -29,7 +29,20 @@ type UserProfile = {
 }
 
 export default function UserDashboard() {
-  const [date, setDate] = useState<Date | undefined>(new Date())
+  // Set the minimum booking date - either April 2, 2025 or today, whichever is later
+  const minBookingDate = new Date(2025, 3, 2) // April 2, 2025
+  const today = new Date()
+
+  // If today is after April 2, 2025, use today as the start date
+  const startDate = isAfter(today, minBookingDate) ? today : minBookingDate
+
+  // Calculate end date (7 days from start date)
+  const endDate = addDays(startDate, 7)
+
+  // Set default month to April if current month is March
+  const defaultMonth = today.getMonth() === 2 ? new Date(today.getFullYear(), 3) : today
+
+  const [date, setDate] = useState<Date | undefined>(startDate)
   const [selectedTime, setSelectedTime] = useState(null)
   const [selectedService, setSelectedService] = useState(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -56,6 +69,9 @@ export default function UserDashboard() {
   const [error, setError] = useState<string | null>(null)
 
   // Fetch appointments from Supabase
+  // Replace the fetchAppointments function with this updated version
+
+  // Fetch appointments from Supabase
   const fetchAppointments = async () => {
     setLoading(true)
     try {
@@ -69,26 +85,36 @@ export default function UserDashboard() {
 
       // Transform the data to match our appointment structure
       const formattedAppointments = data.map((appointment) => {
+        // Create a new Date object from the ISO string
+        // Date constructor automatically converts UTC to local time zone
+        const appointmentTime = new Date(appointment.appointment_time)
+
+        console.log('Appointment from DB:', appointment.appointment_time)
+        console.log(
+          'Converted to local time:',
+          appointmentTime.toLocaleString(),
+        )
+
         return {
           id: appointment.id,
           name: appointment.name || 'Unnamed',
           phone_number: appointment.phone_number || '',
           service: appointment.service,
-          appointment_time: new Date(appointment.appointment_time),
+          appointment_time: appointmentTime,
         }
       })
 
       setAppointments(formattedAppointments)
     } catch (error) {
       console.error('Error:', error)
-      setError('Something went wrong. Please try again later.')
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Fetch user's appointments
-  const fetchUserAppointments = async (userId: string) => {
+  // The same approach should be used for fetchUserAppointments
+  const fetchUserAppointments = async (userId) => {
     try {
       const { data, error } = await supabase
         .from('appointments')
@@ -106,19 +132,23 @@ export default function UserDashboard() {
 
       // Transform the data to match our appointment structure
       const formattedAppointments = data.map((appointment) => {
+        // Create a new Date object from the ISO string
+        // Date constructor automatically converts UTC to local time zone
+        const appointmentTime = new Date(appointment.appointment_time)
+
         return {
           id: appointment.id,
           name: appointment.name || 'Unnamed',
           phone_number: appointment.phone_number || '',
           service: appointment.service,
-          appointment_time: new Date(appointment.appointment_time),
+          appointment_time: appointmentTime,
         }
       })
 
       setUserAppointments(formattedAppointments)
     } catch (error) {
       console.error('Error:', error)
-      setError('Something went wrong. Please try again later.')
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
     }
   }
 
@@ -134,7 +164,7 @@ export default function UserDashboard() {
 
       if (fetchError) {
         console.error('Error fetching appointment details:', fetchError)
-        setError('Failed to cancel appointment. Please try again.')
+        setError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
         return false
       }
 
@@ -158,14 +188,17 @@ export default function UserDashboard() {
       }
 
       // Delete from appointments table
-      const { error: deleteError } = await supabase
+      const { data: deleteData, error: deleteError } = await supabase
         .from('appointments')
         .delete()
         .eq('id', appointmentId)
+        .select()
+
+      console.log('Delete response:', deleteData, deleteError)
 
       if (deleteError) {
         console.error('Error cancelling appointment:', deleteError)
-        setError('Failed to cancel appointment. Please try again.')
+        setError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
         return false
       }
 
@@ -182,7 +215,7 @@ export default function UserDashboard() {
       return true
     } catch (error) {
       console.error('Error:', error)
-      setError('Something went wrong. Please try again later.')
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
       return false
     }
   }
@@ -191,13 +224,29 @@ export default function UserDashboard() {
   const handleCancelConfirm = async () => {
     if (appointmentToCancel === null) return
 
-    const success = await cancelAppointment(appointmentToCancel)
-    if (success) {
-      alert('Appointment cancelled successfully')
-    }
+    try {
+      console.log(
+        'Starting cancellation process for appointment ID:',
+        appointmentToCancel,
+      )
+      const success = await cancelAppointment(appointmentToCancel)
 
-    setShowCancelConfirmation(false)
-    setAppointmentToCancel(null)
+      if (success) {
+        alert('Termin je uspješno otkazan')
+        // Remove the cancelled appointment from local state
+        setUserAppointments(
+          userAppointments.filter((app) => app.id !== appointmentToCancel),
+        )
+      } else {
+        alert('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
+      }
+    } catch (error) {
+      console.error('Error in handleCancelConfirm:', error)
+      alert('Došlo je do greške prilikom otkazivanja. Molimo pokušajte ponovo.')
+    } finally {
+      setShowCancelConfirmation(false)
+      setAppointmentToCancel(null)
+    }
   }
 
   // Check authentication and fetch user profile data
@@ -287,8 +336,6 @@ export default function UserDashboard() {
     return serviceDurations[id] || 30
   }
 
-  // Calculate available time slots based on existing appointments for the selected date
-  // Calculate available time slots based on existing appointments for the selected date
   // Calculate available time slots based on existing appointments for the selected date
   const calculateAvailableTimeSlots = (
     date: Date,
@@ -455,11 +502,6 @@ export default function UserDashboard() {
     }
   }, [date, selectedService, appointments])
 
-  // Log selections for debugging
-  useEffect(() => {
-    console.log('DD: ', date, selectedTime, selectedService)
-  }, [date, selectedTime, selectedService])
-
   // Handle reservation submission
   const handleReservationSubmit = () => {
     if (!name || !phone) {
@@ -479,8 +521,24 @@ export default function UserDashboard() {
     setPhone(e.target.value)
   }
 
+  // Custom date filter function to disable Sundays and dates outside the booking window
+  const disabledDays = (date: Date) => {
+    // Check if it's Sunday (0 = Sunday, 1 = Monday, etc.)
+    return (
+      getDay(date) === 0 ||
+      // Before start date (April 2nd or today, whichever is later)
+      isBefore(date, startDate) ||
+      // After end date (current start date + 7 days)
+      isAfter(date, endDate) ||
+      // The user already has 3 appointments
+      userAppointments.length >= 3
+    )
+  }
+
   // Handle confirmation
-  // Handle confirmation
+  // Inside handleConfirm function in UserDashboard.js
+  // Replace the appointment creation section with this code
+
   const handleConfirm = async () => {
     if (!date || !selectedTime || selectedService === null) {
       setError('Please complete all required fields')
@@ -509,7 +567,16 @@ export default function UserDashboard() {
       const appointmentTime = new Date(date)
       appointmentTime.setHours(hours, minutes, 0, 0)
 
-      // Insert the new appointment into Supabase
+      // Adjust for timezone before storing
+      // This compensates for the timezone difference by adding the offset
+      const timezoneOffset = appointmentTime.getTimezoneOffset()
+      const adjustedTime = new Date(appointmentTime)
+      adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
+
+      console.log('Local time selected:', appointmentTime.toLocaleString())
+      console.log('Adjusted time for storage:', adjustedTime.toISOString())
+
+      // Insert the new appointment into Supabase with the adjusted time
       const { data, error } = await supabase
         .from('appointments')
         .insert([
@@ -517,14 +584,14 @@ export default function UserDashboard() {
             name: name,
             phone_number: phone,
             service: selectedService,
-            appointment_time: appointmentTime.toISOString(),
+            appointment_time: adjustedTime.toISOString(),
             user_id: userId,
           },
         ])
         .select()
 
       if (error) {
-        console.error('Error adding appointment:', error)
+        console.error('Greška prilikom dodavanja termina:', error)
         setError(`Error creating appointment: ${error.message}`)
         return
       }
@@ -548,7 +615,7 @@ export default function UserDashboard() {
 
       // Reset form and close confirmation
       setShowConfirmation(false)
-      setDate(new Date())
+      setDate(startDate)
       setSelectedTime(null)
       setSelectedService(null)
 
@@ -559,7 +626,7 @@ export default function UserDashboard() {
       await fetchUserAppointments(userId)
     } catch (error) {
       console.error('Error:', error)
-      setError('An unexpected error occurred')
+      setError('Došlo je do neočekivane greške')
     }
   }
 
@@ -655,13 +722,9 @@ export default function UserDashboard() {
             mode="single"
             selected={date}
             onSelect={setDate}
-            disabled={{
-              before: new Date(),
-              ...(userAppointments.length >= 3
-                ? { after: addDays(new Date(), 365) }
-                : {}),
-            }}
-            className=" w-full rounded-md border "
+            disabled={disabledDays}
+            defaultMonth={defaultMonth} // Set the default month
+            className="w-full rounded-md border"
             classNames={{
               months:
                 'flex w-full flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 flex-1',
@@ -672,7 +735,20 @@ export default function UserDashboard() {
               cell: cn(
                 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected].day-range-end)]:rounded-r-md',
               ),
+              day: (props) =>
+                cn(
+                  'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
+                  getDay(props.date) === 0 && 'text-red-500', // Sunday text in red
+                ),
             }}
+            footer={
+              <div className="mt-3 text-center text-sm text-gray-500">
+                Rezervacija moguća za period {format(startDate, 'dd.MM.')} -{' '}
+                {format(endDate, 'dd.MM.yyyy')}
+                <br />
+                Nedjelja je neradni dan
+              </div>
+            }
           />
         </div>
       </div>
@@ -778,6 +854,8 @@ const renderCancelConfirmation = (
 }
 
 // Render user appointments
+// Replace the renderUserAppointments function with this updated version
+
 const renderUserAppointments = (
   userAppointments,
   getServiceName,
@@ -822,16 +900,11 @@ const renderUserAppointments = (
                 </p>
                 <p className="text-sm text-gray-600">
                   {appointment.appointment_time.toLocaleDateString('bs')} u{' '}
-                  {(() => {
-                    // Create a new date object to avoid modifying the original
-                    const displayTime = new Date(appointment.appointment_time)
-                    // Add 1 hour
-                    displayTime.setHours(displayTime.getHours() + 1)
-                    return displayTime.toLocaleTimeString('bs', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  })()}
+                  {appointment.appointment_time.toLocaleTimeString('bs', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
                 </p>
               </div>
             </div>

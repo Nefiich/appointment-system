@@ -16,11 +16,20 @@ export default async function Login({
     data: { session },
   } = await supabase.auth.getSession()
 
-  // If session exists, redirect to appointment page
+  // If session exists, redirect based on user type
   if (session) {
-    redirect('/admin')
+    const user = session.user
+    
+    // If user has email, they're an admin user
+    if (user.email) {
+      redirect('/admin')
+    } else {
+      // Otherwise they're a regular user authenticated with phone
+      redirect('/rezervacije')
+    }
   }
 
+  // Rest of the login page code remains the same
   const signIn = async (formData: FormData) => {
     'use server'
 
@@ -32,6 +41,11 @@ export default async function Login({
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: {
+        data: {
+          is_admin: true
+        }
+      }
     })
 
     if (error) {

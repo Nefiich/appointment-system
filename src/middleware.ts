@@ -9,15 +9,38 @@ export async function middleware(request: NextRequest) {
     // Refresh session if expired - required for Server Components
     await supabase.auth.getSession()
     
-    // Check if accessing admin routes without authentication
+    // Check if accessing protected routes without authentication
     const url = request.nextUrl.clone()
-    if (url.pathname.startsWith('/admin')) {
-      const { data: { session } } = await supabase.auth.getSession()
-      
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    // If user is authenticated and visiting the root path, redirect to rezervacije
+    if (session && url.pathname === '/') {
+      // Check if user is admin (has email) or regular user
+      if (session.user.email) {
+        url.pathname = '/admin'
+      } else {
+        url.pathname = '/rezervacije'
+      }
+      return NextResponse.redirect(url)
+    }
+    
+    // Check if user is trying to access protected routes
+    if (url.pathname.startsWith('/admin') || url.pathname.startsWith('/rezervacije')) {
       if (!session) {
+        // Redirect to login if not authenticated
         url.pathname = '/login'
-        url.searchParams.set('message', 'Please login to access the admin area')
+        url.searchParams.set('message', 'Please login to access this area')
         return NextResponse.redirect(url)
+      }
+      
+      // If user is authenticated with phone, only allow /rezervacije
+      if (url.pathname.startsWith('/admin')) {
+        const user = session.user
+        // Check if user authenticated with phone (no email)
+        if (!user.email) {
+          url.pathname = '/rezervacije'
+          return NextResponse.redirect(url)
+        }
       }
     }
     
@@ -30,7 +53,7 @@ export async function middleware(request: NextRequest) {
   }
 }
 
-// Add a config to specify which routes this middleware should run on
+// Update the config to include the root path
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  matcher: ['/', '/admin/:path*', '/api/admin/:path*', '/rezervacije/:path*'],
 }

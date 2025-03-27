@@ -68,6 +68,13 @@ const UserLoginSteps = () => {
         setError('')
         const { data, error } = await supabase.auth.signInWithOtp({
           phone: `+387${phoneNumber}`,
+          options: {
+            // Add metadata to identify this as a phone user
+            data: {
+              phone: true,
+              name: name,
+            },
+          },
         })
 
         if (error) {
@@ -109,6 +116,7 @@ const UserLoginSteps = () => {
               user_id: user.id,
               name: name,
               phone_number: `+387${phoneNumber}`,
+              is_phone_user: true, // Add this flag
             },
             {
               onConflict: 'user_id',
@@ -122,7 +130,7 @@ const UserLoginSteps = () => {
 
           setSubmitted(true)
           setTimeout(() => {
-            router.push('/rezervacija/')
+            router.push('/rezervacije/')
           }, 1500)
         } else {
           setError('Verification failed. Please try again.')
@@ -130,7 +138,7 @@ const UserLoginSteps = () => {
       }
     } catch (err) {
       console.error('Authentication error:', err)
-      setError('An unexpected error occurred. Please try again.')
+      setError('Došlo je do neočekivane greške. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -177,7 +185,7 @@ const UserLoginSteps = () => {
       <Card className="mx-auto w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-xl font-semibold">
-            Success!
+            Uspjeh!
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -185,16 +193,11 @@ const UserLoginSteps = () => {
             <CheckCircle2 className="h-16 w-16 text-green-500" />
           </div>
           <p className="text-center">
-            Your phone number has been successfully verified!
+            Vaš broj telefona je uspješno verifikovan!
           </p>
           <p className="text-center text-sm text-gray-500">Welcome, {name}!</p>
           <p className="text-center text-sm text-gray-500">{phoneNumber}</p>
         </CardContent>
-        <CardFooter>
-          <Button onClick={handleReset} className="w-full">
-            Verify Another Number
-          </Button>
-        </CardFooter>
       </Card>
     )
   }
@@ -210,12 +213,12 @@ const UserLoginSteps = () => {
       <h1 className="mt-10 text-center text-4xl font-bold">
         Rezervacije termina počinju od 2. Aprila !
       </h1>
-      {/* <Card className="mx-auto mt-10 w-full max-w-md">
+      <Card className="mx-auto mt-10 w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl font-semibold">
-            Phone Number Verification
+            Prijava putem broja
           </CardTitle>
-          <CardDescription>Step {step} of 2</CardDescription>
+          <CardDescription>Step {step} od 2</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -228,24 +231,24 @@ const UserLoginSteps = () => {
           {step === 1 && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="name">Enter your name</Label>
+                <Label htmlFor="name">Unesite vaše ime</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Pero Pero"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Enter your phone number</Label>
+                <Label htmlFor="phone">Unesite vaš broj telefonar</Label>
                 <div className="flex space-x-2">
                   <Phone className="mt-3 h-4 w-4" />
                   <Input
                     id="phone"
                     type="tel"
-                    placeholder="+1234567890"
+                    placeholder="061123123"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                   />
@@ -257,9 +260,9 @@ const UserLoginSteps = () => {
           {step === 2 && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Enter verification code</Label>
+                <Label>Unesite verifikacijski kod</Label>
                 <p className="text-sm text-gray-500">
-                  Weve sent a 6-digit code to {phoneNumber}
+                  Poslali smo vam kod na broj telefona: {phoneNumber}
                 </p>
               </div>
               <div className="flex justify-center space-x-2">
@@ -284,7 +287,7 @@ const UserLoginSteps = () => {
         <CardFooter className="flex justify-between">
           {step === 2 && (
             <Button variant="outline" onClick={handleBack} disabled={loading}>
-              Back
+              Nazad
             </Button>
           )}
           <Button
@@ -292,10 +295,10 @@ const UserLoginSteps = () => {
             onClick={handleNext}
             disabled={loading}
           >
-            {loading ? 'Processing...' : step === 2 ? 'Verify' : 'Next'}
+            {loading ? 'Processing...' : step === 2 ? 'Potvrdi' : 'Dalje'}
           </Button>
         </CardFooter>
-      </Card>*/}
+      </Card>
     </div>
   )
 }
