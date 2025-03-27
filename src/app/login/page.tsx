@@ -19,7 +19,7 @@ export default async function Login({
   // If session exists, redirect based on user type
   if (session) {
     const user = session.user
-    
+
     // If user has email, they're an admin user
     if (user.email) {
       redirect('/admin')
@@ -43,9 +43,9 @@ export default async function Login({
       password,
       options: {
         data: {
-          is_admin: true
-        }
-      }
+          is_admin: true,
+        },
+      },
     })
 
     if (error) {
@@ -127,12 +127,6 @@ export default async function Login({
         />
         <button className="mb-2 rounded-md bg-green-700 px-4 py-2 text-foreground">
           Sign In
-        </button>
-        <button
-          formAction={signUp}
-          className="mb-2 rounded-md border border-foreground/20 px-4 py-2 text-foreground"
-        >
-          Sign Up
         </button>
         {searchParams?.message && (
           <p className="mt-4 bg-foreground/10 p-4 text-center text-foreground">

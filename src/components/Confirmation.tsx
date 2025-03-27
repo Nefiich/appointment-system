@@ -20,7 +20,6 @@ export function Confirmation({
   onCancel,
   onBack,
 }: ConfirmationProps) {
-  console.log('SSS: ', service)
   return (
     <div className="mx-auto max-w-md p-6">
       <div className="mb-6 flex items-center">

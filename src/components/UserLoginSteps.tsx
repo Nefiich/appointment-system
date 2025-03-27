@@ -111,7 +111,7 @@ const UserLoginSteps = () => {
 
         if (user && session) {
           // Store user data in the users table
-          const { error: profileError } = await supabase.from('users').upsert(
+          const { error: profileError } = await supabase.from('users').insert(
             {
               user_id: user.id,
               name: name,
@@ -210,9 +210,6 @@ const UserLoginSteps = () => {
         width={200}
         height={200}
       />
-      <h1 className="mt-10 text-center text-4xl font-bold">
-        Rezervacije termina počinju od 2. Aprila !
-      </h1>
       <Card className="mx-auto mt-10 w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl font-semibold">
