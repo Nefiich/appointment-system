@@ -232,14 +232,14 @@ const UserLoginSteps = () => {
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Pero Pero"
+                  placeholder="Ime i Prezime"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Unesite vaš broj telefonar</Label>
+                <Label htmlFor="phone">Unesite vaš broj telefona</Label>
                 <div className="flex space-x-2">
                   <Phone className="mt-3 h-4 w-4" />
                   <Input

@@ -114,9 +114,6 @@ export default function CalendarDashboard() {
         return
       }
 
-      // Debug log the raw data
-      console.log('Raw appointments from DB:', data)
-
       // Transform the data to match our appointment structure
       const formattedAppointments = data.map((appointment) => {
         // Create Date objects from the ISO string
@@ -125,18 +122,6 @@ export default function CalendarDashboard() {
         endTime.setMinutes(
           endTime.getMinutes() + getServiceDuration(appointment.service),
         )
-
-        // Debug log each appointment conversion
-        console.log(`Appointment ID ${appointment.id}:`)
-        console.log(`  Original time: ${appointment.appointment_time}`)
-        console.log(`  Converted startTime: ${startTime.toLocaleString()}`)
-        console.log(
-          `  startTime day: ${startTime.getDate()}, hour: ${startTime.getHours()}, min: ${startTime.getMinutes()}`,
-        )
-        console.log(
-          `  currentDate for comparison: ${currentDate.toLocaleString()}`,
-        )
-        console.log(`  isSameDay test: ${isSameDay(startTime, currentDate)}`)
 
         return {
           id: appointment.id,
@@ -152,9 +137,6 @@ export default function CalendarDashboard() {
         }
       })
 
-      // Log the formatted appointments
-      console.log('Formatted appointments:', formattedAppointments)
-
       setAppointments(formattedAppointments)
     } catch (error) {
       console.error('Error:', error)
@@ -169,31 +151,11 @@ export default function CalendarDashboard() {
       const sameDay = isSameDay(appointment.startTime, day)
       const sameHour = appointment.startTime.getHours() === hour
 
-      if (sameDay && appointment.startTime.getHours() === hour) {
-        console.log(
-          `Found appointment for ${day.toLocaleDateString()} at ${hour}:00 -`,
-          appointment,
-        )
-      }
-
       return sameDay && sameHour
     })
 
-    console.log(
-      `Time slot ${day.toLocaleDateString()} ${hour}:00 has ${filteredAppointments.length} appointments`,
-    )
     return filteredAppointments
   }
-
-  // Also, check the weekDays calculation in the render function
-  // Add this right after the weekDays calculation
-  useEffect(() => {
-    console.log('Current date:', currentDate.toLocaleString())
-    console.log('Week days calculated:')
-    weekDays.forEach((day, index) => {
-      console.log(`  Day ${index}: ${day.toLocaleDateString()}`)
-    })
-  }, [currentDate])
 
   const fetchUserAppointments = async (userId) => {
     try {
@@ -518,9 +480,6 @@ export default function CalendarDashboard() {
     const adjustedTime = new Date(appointmentTime)
     adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
 
-    console.log('Local time selected:', appointmentTime.toLocaleString())
-    console.log('Adjusted time for storage:', adjustedTime.toISOString())
-
     try {
       // Insert the new appointment into Supabase
       const { data, error } = await supabase
@@ -594,7 +553,7 @@ export default function CalendarDashboard() {
         return false
       }
 
-      console.log('Cancelling appointment:', appointmentData)
+      console.log('Appointment to cancel:', appointmentData)
 
       // Insert into canceled_appointments table
       const { error: insertError } = await supabase
@@ -616,14 +575,21 @@ export default function CalendarDashboard() {
         // Continue with deletion even if recording fails
       }
 
-      // Delete from appointments table
+      console.log(
+        'APPID for deletion:',
+        appointmentId,
+        'Type:',
+        typeof appointmentId,
+      )
+
+      // Delete from appointments table with improved logging
       const { data: deleteData, error: deleteError } = await supabase
         .from('appointments')
         .delete()
         .eq('id', appointmentId)
-        .select()
+        .select() // Return the deleted rows to confirm deletion
 
-      console.log('Delete response:', deleteData, deleteError)
+      console.log('Deletion response:', { deleteData, deleteError })
 
       if (deleteError) {
         console.error('Error cancelling appointment:', deleteError)
@@ -631,12 +597,49 @@ export default function CalendarDashboard() {
         return false
       }
 
+      if (!deleteData || deleteData.length === 0) {
+        console.warn('No rows were deleted, but no error was returned')
+
+        return false
+      }
+
+      try {
+        const appointmentDate = new Date(appointmentData.appointment_time)
+        const formattedDate = appointmentDate.toLocaleDateString('bs')
+        const formattedTime = appointmentDate.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+
+        const response = await fetch('/api/send-sms', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: appointmentData.phone_number,
+            message: `Vaš termin za ${getServiceName(appointmentData.service)} dana ${formattedDate} u ${formattedTime} je otkazan. Za više informacija kontaktirajte nas.`,
+          }),
+        })
+
+        if (!response.ok) {
+          console.error(
+            'Failed to send SMS notification:',
+            await response.text(),
+          )
+        } else {
+          console.log('SMS notification sent successfully')
+        }
+      } catch (smsError) {
+        console.error('Error sending SMS notification:', smsError)
+        // Continue with deletion even if SMS fails
+      }
+
       // Refresh appointments
       await fetchAppointments()
-
       return true
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Error in cancelAppointment function:', error)
       setAuthError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
       return false
     }
@@ -647,10 +650,6 @@ export default function CalendarDashboard() {
     if (!selectedAppointment) return
 
     try {
-      console.log(
-        'Starting cancellation process for appointment ID:',
-        selectedAppointment.id,
-      )
       const success = await cancelAppointment(selectedAppointment.id)
 
       if (success) {

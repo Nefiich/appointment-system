@@ -57,6 +57,7 @@
     "react-dom": "18.2.0",
     "shadcn-ui": "^0.9.4",
     "tailwind-merge": "^2.2.0",
+    "twilio": "^5.5.1",
     "undici": "^5.28.2"
   },
   "devDependencies": {
