@@ -42,7 +42,7 @@ export function Confirmation({
 
           <div className="flex justify-between">
             <span className="text-muted-foreground">Vrijme:</span>
-            <span className="font-medium">{time.time || 'Nije izabrano'}</span>
+            <span className="font-medium">{time?.time || 'Nije izabrano'}</span>
           </div>
 
           <div className="flex justify-between">
