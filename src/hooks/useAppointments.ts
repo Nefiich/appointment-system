@@ -15,7 +15,10 @@ export const useAppointments = () => {
     const fetchAppointments = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase.from('appointments').select('*');
+            const { data, error } = await supabase
+                .from('appointments')
+                .select('*')
+                .gte('appointment_time', new Date().toISOString());
 
             if (error) {
                 console.error('Error fetching appointments:', error);
@@ -28,12 +31,6 @@ export const useAppointments = () => {
                 // Create a new Date object from the ISO string
                 // Date constructor automatically converts UTC to local time zone
                 const appointmentTime = new Date(appointment.appointment_time);
-
-                console.log('Appointment from DB:', appointment.appointment_time);
-                console.log(
-                    'Converted to local time:',
-                    appointmentTime.toLocaleString(),
-                );
 
                 return {
                     id: appointment.id,

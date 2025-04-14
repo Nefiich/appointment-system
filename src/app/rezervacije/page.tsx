@@ -57,8 +57,18 @@ export default function UserDashboard() {
 
   // Load all appointments on component mount
   useEffect(() => {
-    fetchAppointments()
-  }, [])
+    const getData = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (session) {
+        await fetchUserAppointments(session.user.id)
+        await fetchAppointments()
+      }
+    }
+    getData()
+  }, [user?.id])
 
   // Handle cancel confirmation
   const handleCancelConfirm = async () => {
