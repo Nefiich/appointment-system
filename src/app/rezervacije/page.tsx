@@ -41,9 +41,7 @@ export default function UserDashboard() {
     setUserAppointments,
   } = useAppointments()
 
-  const { user, name, setName, phone, setPhone } = useAuth(
-    fetchUserAppointments,
-  )
+  const { user, name, setName, phone, setPhone } = useAuth()
 
   const { date, setDate, startDate, endDate, defaultMonth, disabledDays } =
     useBookingDates(userAppointments)

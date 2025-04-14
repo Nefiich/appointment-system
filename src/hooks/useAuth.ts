@@ -4,7 +4,7 @@ import { createBrowserClient } from '@/lib/supabase';
 
 const supabase = createBrowserClient();
 
-export const useAuth = (fetchUserAppointments) => {
+export const useAuth = () => {
     const [user, setUser] = useState(null);
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
@@ -52,9 +52,6 @@ export const useAuth = (fetchUserAppointments) => {
                     setName(userData.name || '');
                     setPhone(userData.phone_number || '');
                 }
-
-                // Fetch user's appointments
-                await fetchUserAppointments(userId);
             } catch (error) {
                 console.error('Auth check error:', error);
                 setError('Failed to load user profile. Please try again.');
@@ -62,7 +59,7 @@ export const useAuth = (fetchUserAppointments) => {
         };
 
         checkAuth();
-    }, [fetchUserAppointments]);
+    }, []);
 
     // Function to logout user and clear browser data
     const logoutAndClearData = async () => {
