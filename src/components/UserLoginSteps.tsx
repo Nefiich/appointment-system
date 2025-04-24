@@ -80,6 +80,11 @@ const UserLoginSteps = () => {
 
         console.log('UD: ', ...userData)
 
+        if (userData.length > 0 && userData[0].custom_password_set) {
+          setStep(4)
+          return
+        }
+
         const { data, error } = await supabase.auth.signInWithOtp({
           phone: `+387${phoneNumber}`,
           options: {
@@ -97,11 +102,7 @@ const UserLoginSteps = () => {
           return
         }
 
-        if (userData.length > 0 && userData[0].custom_password_set) {
-          setStep(4)
-        } else {
-          setStep(2)
-        }
+        setStep(2)
       } else if (step === 2) {
         // Validate OTP
         const otpValue = otp.join('')
