@@ -28,6 +28,28 @@ export default function UserDashboard() {
   const [appointmentToCancel, setAppointmentToCancel] = useState(null)
   const [selectedService, setSelectedService] = useState(null)
 
+  const [blockedDates, setBlockedDates] = useState<Date[]>([])
+
+  // Fetch blocked dates from Supabase
+  const fetchBlockedDates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('blocked_dates') // Assume you have a table named blocked_dates
+        .select('date') // Select the date column
+
+      if (error) {
+        console.error('Error fetching blocked dates:', error)
+        return
+      }
+
+      // Convert database dates to Date objects
+      const parsedBlockedDates = data.map((item) => new Date(item.date))
+      setBlockedDates(parsedBlockedDates)
+    } catch (error) {
+      console.error('Error in fetchBlockedDates:', error)
+    }
+  }
+
   // Initialize custom hooks
   const {
     appointments,
@@ -65,6 +87,7 @@ export default function UserDashboard() {
       if (session) {
         await fetchUserAppointments(session.user.id)
         await fetchAppointments()
+        await fetchBlockedDates()
       }
     }
     getData()
@@ -273,7 +296,8 @@ export default function UserDashboard() {
       <DateSelection
         date={date}
         setDate={setDate}
-        disabledDays={disabledDays}
+        disabledDays={disabledDays()}
+        blockedDates={blockedDates}
         startDate={startDate}
         endDate={endDate}
         defaultMonth={defaultMonth}

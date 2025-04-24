@@ -1,17 +1,33 @@
-// Date selection component
 import React from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
-import { format, getDay } from 'date-fns'
+import { format, getDay, isSameDay, addDays, isBefore, isAfter } from 'date-fns'
 
 export const DateSelection = ({
   date,
   setDate,
-  disabledDays,
+  blockedDates = [], // Explicitly blocked dates
   startDate,
   endDate,
   defaultMonth,
+  userAppointments = [], // User's existing appointments
 }) => {
+  // Custom date filter function to disable Sundays and dates outside the booking window
+  const isDateDisabled = (date: Date) => {
+    return (
+      // Check if it's Sunday (0 = Sunday, 1 = Monday, etc.)
+      getDay(date) === 0 ||
+      // Before start date
+      isBefore(date, startDate) ||
+      // After end date
+      isAfter(date, endDate) ||
+      // The user already has 3 appointments
+      (userAppointments ? userAppointments.length >= 3 : false) ||
+      // Check if date is in explicitly blocked dates
+      blockedDates.some((blockedDate) => isSameDay(blockedDate, date))
+    )
+  }
+
   return (
     <div className="mx-5 mt-5">
       <h2 className="mb-2 text-lg font-bold">1. Izaberite datum: </h2>
@@ -20,7 +36,7 @@ export const DateSelection = ({
           mode="single"
           selected={date}
           onSelect={setDate}
-          disabled={disabledDays}
+          disabled={isDateDisabled}
           defaultMonth={defaultMonth}
           className="w-full rounded-md border"
           classNames={{
@@ -37,6 +53,7 @@ export const DateSelection = ({
               cn(
                 'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
                 getDay(props.date) === 0 && 'text-red-500', // Sunday text in red
+                isDateDisabled(props.date) && 'text-gray-300 line-through', // Add visual indication for disabled dates
               ),
           }}
           footer={

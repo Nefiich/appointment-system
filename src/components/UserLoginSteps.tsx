@@ -28,7 +28,9 @@ const UserLoginSteps = () => {
 
   // OTP related states
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const [password, setPassword] = useState(['', '', '', '', '', ''])
   const inputRefs = useRef([])
+  const passwordInputRefs = useRef([])
 
   const router = useRouter()
 
@@ -66,6 +68,18 @@ const UserLoginSteps = () => {
         }
 
         setError('')
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('phone_number', `+387${phoneNumber}`)
+
+        if (userError) {
+          console.log('UE: ', userError)
+          return
+        }
+
+        console.log('UD: ', userData)
+
         const { data, error } = await supabase.auth.signInWithOtp({
           phone: `+387${phoneNumber}`,
           options: {
@@ -94,6 +108,12 @@ const UserLoginSteps = () => {
           return
         }
 
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('phone_number', `+387${phoneNumber}`)
+
+        console.log('UD22: ', userData)
         const {
           data: { session, user },
           error,
@@ -128,13 +148,60 @@ const UserLoginSteps = () => {
             // Continue anyway since authentication was successful
           }
 
-          setSubmitted(true)
           setTimeout(() => {
-            router.push('/rezervacije/')
+            if (userData?.length > 0) {
+              setStep(3)
+            } else {
+              router.push('/rezervacije/')
+            }
           }, 1500)
         } else {
           setError('Verification failed. Please try again.')
         }
+      } else if (step === 3) {
+        // Validate OTP
+        const passwordNew = password.join('')
+
+        if (passwordNew.length !== 6) {
+          setError('Unesite validan kod od 6 cifri!')
+          setLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase.auth.updateUser({
+          password: passwordNew,
+        })
+
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ custom_password_set: true })
+          .eq('phone_number', phoneNumber)
+
+        console.log('DATA: ', data, error, updateError)
+
+        setTimeout(() => {
+          setStep(4)
+        }, 1500)
+      } else if (step === 4) {
+        // Validate OTP
+        const passwordNew = password.join('')
+
+        if (passwordNew.length !== 6) {
+          setError('Unesite validan kod od 6 cifri!')
+          setLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          phone: `+387${phoneNumber}`,
+          password: passwordNew,
+        })
+
+        console.log('DATA: ', data, error)
+
+        setTimeout(() => {
+          router.push('/rezervacije/')
+        }, 1500)
       }
     } catch (err) {
       console.error('Authentication error:', err)
@@ -147,15 +214,6 @@ const UserLoginSteps = () => {
   const handleBack = () => {
     setStep(1)
     setError('')
-  }
-
-  const handleReset = () => {
-    setStep(1)
-    setName('') // Reset name
-    setPhoneNumber('')
-    setOtp(['', '', '', '', '', ''])
-    setError('')
-    setSubmitted(false)
   }
 
   const handleOtpChange = (index: number, value: string) => {
@@ -173,10 +231,29 @@ const UserLoginSteps = () => {
     }
   }
 
+  const handlePasswordChange = (index: number, value: string) => {
+    if (value.length > 1) {
+      value = value.slice(-1)
+    }
+
+    const newOtp = [...password]
+    newOtp[index] = value
+    setPassword(newOtp)
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      passwordInputRefs.current[index + 1].focus()
+    }
+  }
+
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       // Focus previous input on backspace if current input is empty
-      inputRefs.current[index - 1].focus()
+      if (step === 2) {
+        inputRefs.current[index - 1].focus()
+      } else {
+        passwordInputRefs.current[index - 1].focus()
+      }
     }
   }
 
@@ -215,7 +292,7 @@ const UserLoginSteps = () => {
           <CardTitle className="text-xl font-semibold">
             Prijava putem broja
           </CardTitle>
-          <CardDescription>Step {step} od 2</CardDescription>
+          <CardDescription>Step {step === 1 ? '1' : 2} od 2</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -275,6 +352,60 @@ const UserLoginSteps = () => {
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     ref={(el) => (inputRefs.current[index] = el)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>
+                  Molimo vas kreirajte kod koji cete koristiti u budućnosti za
+                  prijave!
+                </Label>
+              </div>
+              <div className="flex justify-center space-x-2">
+                {password.map((digit, index) => (
+                  <Input
+                    key={index}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    pattern="\d"
+                    className="h-12 w-12 text-center text-lg"
+                    value={digit}
+                    onChange={(e) =>
+                      handlePasswordChange(index, e.target.value)
+                    }
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    ref={(el) => (passwordInputRefs.current[index] = el)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {step === 4 && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Unesite vaš kod koji ste prethodno sačuvali!</Label>
+              </div>
+              <div className="flex justify-center space-x-2">
+                {password.map((digit, index) => (
+                  <Input
+                    key={index}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    pattern="\d"
+                    className="h-12 w-12 text-center text-lg"
+                    value={digit}
+                    onChange={(e) =>
+                      handlePasswordChange(index, e.target.value)
+                    }
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    ref={(el) => (passwordInputRefs.current[index] = el)}
                   />
                 ))}
               </div>

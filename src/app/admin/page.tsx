@@ -48,6 +48,8 @@ export default function CalendarDashboard() {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false)
 
+  const [blockedDates, setBlockedDates] = useState<Date[]>([])
+
   // Generate the days of the week starting from today
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentDate, i))
 
@@ -89,10 +91,98 @@ export default function CalendarDashboard() {
     checkAuth()
   }, [router])
 
-  // Replace the fetchAppointments function with this updated version
+  useEffect(() => {
+    console.log('Appointments:', appointments)
+    // Set up realtime subscription
+    const appointmentsSubscription = supabase
+      .channel('appointments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'appointments',
+        },
+        (payload) => {
+          console.log('Realtime update received:', payload)
 
-  // Add this debugging code inside the fetchAppointments function in your admin dashboard
-  // just before the setAppointments call
+          // Handle different event types
+          if (payload.eventType === 'INSERT') {
+            // A new appointment was added
+            const newAppointment = payload.new
+
+            // Create appointment object in the format our app uses
+            const startTime = new Date(newAppointment.appointment_time)
+            const endTime = new Date(startTime)
+            endTime.setMinutes(
+              endTime.getMinutes() + getServiceDuration(newAppointment.service),
+            )
+
+            const formattedAppointment = {
+              id: newAppointment.id,
+              title: newAppointment.name || 'Unnamed',
+              description: newAppointment.phone_number || '',
+              startTime: startTime,
+              endTime: endTime,
+              color: getColorForService(newAppointment.service),
+              name: newAppointment.name,
+              service: newAppointment.service,
+              phone_number: newAppointment.phone_number,
+              user_id: newAppointment.user_id,
+            }
+
+            // Add to our appointments state
+            setAppointments((current) => [...current, formattedAppointment])
+          } else if (payload.eventType === 'UPDATE') {
+            // An appointment was updated
+            const updatedAppointment = payload.new
+
+            setAppointments((current) =>
+              current.map((app) => {
+                if (app.id === updatedAppointment.id) {
+                  // Update this appointment
+                  const startTime = new Date(
+                    updatedAppointment.appointment_time,
+                  )
+                  const endTime = new Date(startTime)
+                  endTime.setMinutes(
+                    endTime.getMinutes() +
+                      getServiceDuration(updatedAppointment.service),
+                  )
+
+                  return {
+                    ...app,
+                    title: updatedAppointment.name || 'Unnamed',
+                    description: updatedAppointment.phone_number || '',
+                    startTime: startTime,
+                    endTime: endTime,
+                    color: getColorForService(updatedAppointment.service),
+                    name: updatedAppointment.name,
+                    service: updatedAppointment.service,
+                    phone_number: updatedAppointment.phone_number,
+                  }
+                }
+                return app
+              }),
+            )
+          } else if (payload.eventType === 'DELETE') {
+            // An appointment was deleted
+            const deletedAppointmentId = payload.old.id
+
+            // Remove from our appointments state
+            setAppointments((current) =>
+              current.filter((app) => app.id !== deletedAppointmentId),
+            )
+          }
+        },
+      )
+      .subscribe()
+
+    // Clean up subscription when component unmounts
+    return () => {
+      supabase.removeChannel(appointmentsSubscription)
+    }
+  }, [])
 
   const fetchAppointments = async () => {
     setLoading(true)
@@ -144,6 +234,85 @@ export default function CalendarDashboard() {
       setLoading(false)
     }
   }
+
+  const [notification, setNotification] = useState<{
+    message: string
+    visible: boolean
+  }>({ message: '', visible: false })
+  const notificationAudioRef = React.useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    console.log('Appointments:', appointments)
+    // Set up realtime subscription
+    const appointmentsSubscription = supabase
+      .channel('appointments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'appointments',
+        },
+        (payload) => {
+          console.log('Realtime update received:', payload)
+
+          // Handle different event types
+          // ... existing appointment subscription code ...
+        },
+      )
+      .subscribe()
+
+    // Set up subscription for canceled_appointments
+    const canceledAppointmentsSubscription = supabase
+      .channel('canceled-appointments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT', // Listen for new canceled appointments
+          schema: 'public',
+          table: 'canceled_appointments',
+        },
+        (payload) => {
+          console.log('Canceled appointment update received:', payload)
+
+          // Get the canceled appointment data
+          const canceledAppointment = payload.new
+
+          // Format the date and time
+          const appointmentDate = new Date(canceledAppointment.appointment_time)
+          const formattedDate = appointmentDate.toLocaleDateString('bs')
+          const formattedTime = appointmentDate.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+
+          // Create notification message
+          const message = `Termin otkazan: ${canceledAppointment.name} - ${formattedDate} u ${formattedTime}`
+
+          // Show notification
+          setNotification({ message, visible: true })
+
+          // Play sound
+          if (notificationAudioRef.current) {
+            notificationAudioRef.current.play().catch((err) => {
+              console.error('Error playing notification sound:', err)
+            })
+          }
+
+          // Hide notification after 15 seconds
+          setTimeout(() => {
+            setNotification((prev) => ({ ...prev, visible: false }))
+          }, 15000)
+        },
+      )
+      .subscribe()
+
+    // Clean up subscriptions when component unmounts
+    return () => {
+      supabase.removeChannel(appointmentsSubscription)
+      supabase.removeChannel(canceledAppointmentsSubscription)
+    }
+  }, [])
 
   // Add this debugging to the getAppointmentsForTimeSlot function
   const getAppointmentsForTimeSlot = (day: Date, hour: number) => {
@@ -203,11 +372,31 @@ export default function CalendarDashboard() {
       } = await supabase.auth.getSession()
       if (session) {
         fetchAppointments()
+        fetchBlockedDates()
       }
     }
 
     checkSessionAndFetch()
   }, [currentDate])
+
+  const fetchBlockedDates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('blocked_dates') // Assume you have a table named blocked_dates
+        .select('date') // Select the date column
+
+      if (error) {
+        console.error('Error fetching blocked dates:', error)
+        return
+      }
+
+      // Convert database dates to Date objects
+      const parsedBlockedDates = data.map((item) => new Date(item.date))
+      setBlockedDates(parsedBlockedDates)
+    } catch (error) {
+      console.error('Error in fetchBlockedDates:', error)
+    }
+  }
 
   // Helper function to assign colors based on service
   const getColorForService = (service: string | null) => {
@@ -728,6 +917,19 @@ export default function CalendarDashboard() {
       </header>
 
       <main className="flex-1 overflow-auto p-4">
+        {notification.visible && (
+          <div className="fixed bottom-4 right-4 z-50 max-w-md rounded-lg bg-red-600 p-4 text-white shadow-lg animate-in fade-in slide-in-from-bottom-5">
+            <div className="flex items-center">
+              <div className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-800">
+                <X className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium">{notification.message}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {authError && (
           <div className="mb-4 rounded-md bg-red-100 p-4 text-red-800">
             <p>{authError}</p>
@@ -923,13 +1125,19 @@ export default function CalendarDashboard() {
                   selected={appointmentDate}
                   onSelect={(date) => {
                     setAppointmentDate(date)
-                    // Reset selected time when date changes
                     setSelectedTime(null)
                   }}
-                  className=" w-full rounded-md border "
-                  disabled={{
-                    before: new Date(),
-                    after: addDays(new Date(), 30),
+                  className="w-full rounded-md border"
+                  disabled={(date) => {
+                    const isPastDate = date < new Date()
+
+                    const isFutureDate = date > addDays(new Date(), 30)
+
+                    const isBlockedDate = blockedDates.some((blockedDate) =>
+                      isSameDay(blockedDate, date),
+                    )
+
+                    return isPastDate || isFutureDate || isBlockedDate
                   }}
                   classNames={{
                     months:
