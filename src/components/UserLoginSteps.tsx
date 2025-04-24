@@ -78,7 +78,7 @@ const UserLoginSteps = () => {
           return
         }
 
-        console.log('UD: ', userData)
+        console.log('UD: ', ...userData)
 
         const { data, error } = await supabase.auth.signInWithOtp({
           phone: `+387${phoneNumber}`,
@@ -97,7 +97,11 @@ const UserLoginSteps = () => {
           return
         }
 
-        setStep(2)
+        if (userData.length > 0 && userData[0].custom_password_set) {
+          setStep(4)
+        } else {
+          setStep(2)
+        }
       } else if (step === 2) {
         // Validate OTP
         const otpValue = otp.join('')
@@ -113,7 +117,7 @@ const UserLoginSteps = () => {
           .select('*')
           .eq('phone_number', `+387${phoneNumber}`)
 
-        console.log('UD22: ', userData)
+        console.log('UD22: ', userData, userError)
         const {
           data: { session, user },
           error,
@@ -131,7 +135,7 @@ const UserLoginSteps = () => {
 
         if (user && session) {
           // Store user data in the users table
-          const { error: profileError } = await supabase.from('users').insert(
+          const { error: profileError } = await supabase.from('users').upsert(
             {
               user_id: user.id,
               name: name,
@@ -172,16 +176,17 @@ const UserLoginSteps = () => {
           password: passwordNew,
         })
 
-        const { error: updateError } = await supabase
+        console.log('PN :', phoneNumber)
+
+        const { data: updateData, error: updateError } = await supabase
           .from('users')
           .update({ custom_password_set: true })
-          .eq('phone_number', phoneNumber)
+          .eq('phone_number', `+387${phoneNumber}`)
 
-        console.log('DATA: ', data, error, updateError)
+        console.log('DATA: ', data, error)
+        console.log('UPDATE: ', updateData, updateError)
 
-        setTimeout(() => {
-          setStep(4)
-        }, 1500)
+        setStep(4)
       } else if (step === 4) {
         // Validate OTP
         const passwordNew = password.join('')

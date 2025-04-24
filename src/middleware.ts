@@ -26,6 +26,7 @@ export async function middleware(request: NextRequest) {
 
     // Check if user is trying to access protected routes
     if (url.pathname.startsWith('/admin') || url.pathname.startsWith('/rezervacije')) {
+      console.log("IN HERE FOR SOME REASON");
       if (!session && url.pathname.startsWith('/admin')) {
         // Redirect to login if not authenticated
         url.pathname = '/login';
@@ -36,7 +37,7 @@ export async function middleware(request: NextRequest) {
       if (!session && url.pathname.startsWith('/rezervacije')) {
         // Redirect to login if not authenticated
         url.pathname = '/';
-        url.searchParams.set('message', 'Please login to access this area');
+        url.searchParams.set('message', 'Please login to access this area22');
         return NextResponse.redirect(url);
       }
 
