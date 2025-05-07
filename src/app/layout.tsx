@@ -5,6 +5,9 @@ import './globals.css'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import ReactQueryProvider from '@/providers/ReactQueryProvider'
 import { SideBar } from '@/components/SideBar'
+import { Toaster } from '@/components/ui/toaster'
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { AppSidebar } from '@/components/app-sidebar'
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -40,8 +43,12 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ReactQueryProvider>
-            <main className="h-screen">{children}</main>
-            <ReactQueryDevtools initialIsOpen={false} />
+            <SidebarProvider>
+              <AppSidebar />
+              <main className="h-screen w-screen">{children}</main>
+              <Toaster />
+              <ReactQueryDevtools initialIsOpen={false} />
+            </SidebarProvider>
           </ReactQueryProvider>
         </ThemeProvider>
       </body>

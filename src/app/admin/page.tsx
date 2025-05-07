@@ -2,7 +2,14 @@
 
 import React, { useEffect } from 'react'
 import { useState } from 'react'
-import { addDays, format, isSameDay } from 'date-fns'
+import {
+  addDays,
+  addMonths,
+  endOfDay,
+  format,
+  isSameDay,
+  parseISO,
+} from 'date-fns'
 import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase'
@@ -13,6 +20,10 @@ import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
 import SelectableGrid from '@/components/SelectableGrid'
 import { ScrollablePills } from '@/components/ScrollablePills'
+import { start } from 'repl'
+import { toast } from '@/hooks/use-toast'
+import { dayMap } from '@/lib/appointment-utils'
+import { SidebarTrigger } from '@/components/ui/sidebar'
 
 // Initialize Supabase client
 const supabase = createBrowserClient()
@@ -34,6 +45,8 @@ type Appointment = {
 type ViewType = 'day' | 'week' | 'month' | 'year'
 
 export default function CalendarDashboard() {
+  const notificationAudioRef = React.useRef<HTMLAudioElement>(null)
+
   const router = useRouter()
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [view, setView] = useState<ViewType>('week')
@@ -91,99 +104,6 @@ export default function CalendarDashboard() {
     checkAuth()
   }, [router])
 
-  useEffect(() => {
-    console.log('Appointments:', appointments)
-    // Set up realtime subscription
-    const appointmentsSubscription = supabase
-      .channel('appointments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'appointments',
-        },
-        (payload) => {
-          console.log('Realtime update received:', payload)
-
-          // Handle different event types
-          if (payload.eventType === 'INSERT') {
-            // A new appointment was added
-            const newAppointment = payload.new
-
-            // Create appointment object in the format our app uses
-            const startTime = new Date(newAppointment.appointment_time)
-            const endTime = new Date(startTime)
-            endTime.setMinutes(
-              endTime.getMinutes() + getServiceDuration(newAppointment.service),
-            )
-
-            const formattedAppointment = {
-              id: newAppointment.id,
-              title: newAppointment.name || 'Unnamed',
-              description: newAppointment.phone_number || '',
-              startTime: startTime,
-              endTime: endTime,
-              color: getColorForService(newAppointment.service),
-              name: newAppointment.name,
-              service: newAppointment.service,
-              phone_number: newAppointment.phone_number,
-              user_id: newAppointment.user_id,
-            }
-
-            // Add to our appointments state
-            setAppointments((current) => [...current, formattedAppointment])
-          } else if (payload.eventType === 'UPDATE') {
-            // An appointment was updated
-            const updatedAppointment = payload.new
-
-            setAppointments((current) =>
-              current.map((app) => {
-                if (app.id === updatedAppointment.id) {
-                  // Update this appointment
-                  const startTime = new Date(
-                    updatedAppointment.appointment_time,
-                  )
-                  const endTime = new Date(startTime)
-                  endTime.setMinutes(
-                    endTime.getMinutes() +
-                      getServiceDuration(updatedAppointment.service),
-                  )
-
-                  return {
-                    ...app,
-                    title: updatedAppointment.name || 'Unnamed',
-                    description: updatedAppointment.phone_number || '',
-                    startTime: startTime,
-                    endTime: endTime,
-                    color: getColorForService(updatedAppointment.service),
-                    name: updatedAppointment.name,
-                    service: updatedAppointment.service,
-                    phone_number: updatedAppointment.phone_number,
-                  }
-                }
-                return app
-              }),
-            )
-          } else if (payload.eventType === 'DELETE') {
-            // An appointment was deleted
-            const deletedAppointmentId = payload.old.id
-
-            // Remove from our appointments state
-            setAppointments((current) =>
-              current.filter((app) => app.id !== deletedAppointmentId),
-            )
-          }
-        },
-      )
-      .subscribe()
-
-    // Clean up subscription when component unmounts
-    return () => {
-      supabase.removeChannel(appointmentsSubscription)
-    }
-  }, [])
-
   const fetchAppointments = async () => {
     setLoading(true)
     try {
@@ -197,7 +117,20 @@ export default function CalendarDashboard() {
         return
       }
 
-      const { data, error } = await supabase.from('appointments').select('*')
+      const today = new Date()
+      const startDate = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        0,
+        0,
+        0,
+      )
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .gte('appointment_time', startDate.toISOString())
 
       if (error) {
         console.error('Error fetching appointments:', error)
@@ -227,6 +160,8 @@ export default function CalendarDashboard() {
         }
       })
 
+      console.log('FA: ', formattedAppointments)
+
       setAppointments(formattedAppointments)
     } catch (error) {
       console.error('Error:', error)
@@ -235,14 +170,7 @@ export default function CalendarDashboard() {
     }
   }
 
-  const [notification, setNotification] = useState<{
-    message: string
-    visible: boolean
-  }>({ message: '', visible: false })
-  const notificationAudioRef = React.useRef<HTMLAudioElement>(null)
-
   useEffect(() => {
-    console.log('Appointments:', appointments)
     // Set up realtime subscription
     const appointmentsSubscription = supabase
       .channel('appointments-changes')
@@ -255,59 +183,71 @@ export default function CalendarDashboard() {
         },
         (payload) => {
           console.log('Realtime update received:', payload)
+          if (payload.eventType === 'INSERT') {
+            // Create Date objects from the ISO string
+            const startTime = new Date(payload.new.appointment_time)
+            const endTime = new Date(startTime)
+            endTime.setMinutes(
+              endTime.getMinutes() + getServiceDuration(payload.new.service),
+            )
 
-          // Handle different event types
-          // ... existing appointment subscription code ...
+            const formattedAppointment = {
+              id: payload.new.id,
+              title: payload.new.name || 'Unnamed',
+              description: payload.new.phone_number || '',
+              startTime: startTime,
+              endTime: endTime,
+              color: getColorForService(payload.new.service),
+              name: payload.new.name,
+              service: payload.new.service,
+              phone_number: payload.new.phone_number,
+              user_id: payload.new.user_id,
+            }
+
+            setAppointments((appointments) => [
+              ...appointments,
+              formattedAppointment,
+            ])
+          } else if (payload.eventType === 'DELETE') {
+            const appointmentToBeCanceled = appointments.filter(
+              (app) => app.id === payload.old.id,
+            )
+            console.log('APPCT: ', appointmentToBeCanceled)
+            setAppointments((appointments) =>
+              appointments.filter((app) => app.id !== payload.old.id),
+            )
+          }
         },
       )
       .subscribe()
 
     // Set up subscription for canceled_appointments
     const canceledAppointmentsSubscription = supabase
-      .channel('canceled-appointments-changes')
+      .channel('canceled-appointments-change')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT', // Listen for new canceled appointments
+          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
           schema: 'public',
           table: 'canceled_appointments',
         },
         (payload) => {
           console.log('Canceled appointment update received:', payload)
+          if (payload.eventType === 'INSERT') {
+            const formatted = `${dayMap[format(parseISO(payload.new.appointment_time), 'EEEE')]}, ${format(parseISO(payload.new.appointment_time), "dd.MM 'u' HH:mm")}`
 
-          // Get the canceled appointment data
-          const canceledAppointment = payload.new
-
-          // Format the date and time
-          const appointmentDate = new Date(canceledAppointment.appointment_time)
-          const formattedDate = appointmentDate.toLocaleDateString('bs')
-          const formattedTime = appointmentDate.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-
-          // Create notification message
-          const message = `Termin otkazan: ${canceledAppointment.name} - ${formattedDate} u ${formattedTime}`
-
-          // Show notification
-          setNotification({ message, visible: true })
-
-          // Play sound
-          if (notificationAudioRef.current) {
-            notificationAudioRef.current.play().catch((err) => {
-              console.error('Error playing notification sound:', err)
+            notificationAudioRef?.current?.play()
+            toast({
+              title: 'Termin Otkazan!',
+              variant: 'destructive',
+              duration: 10000,
+              description: `${payload.new.name}, ${formatted}`,
             })
           }
-
-          // Hide notification after 15 seconds
-          setTimeout(() => {
-            setNotification((prev) => ({ ...prev, visible: false }))
-          }, 15000)
         },
       )
       .subscribe()
 
-    // Clean up subscriptions when component unmounts
     return () => {
       supabase.removeChannel(appointmentsSubscription)
       supabase.removeChannel(canceledAppointmentsSubscription)
@@ -324,44 +264,6 @@ export default function CalendarDashboard() {
     })
 
     return filteredAppointments
-  }
-
-  const fetchUserAppointments = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('appointment_time', new Date().toISOString())
-        .order('appointment_time', { ascending: true })
-        .limit(3)
-
-      if (error) {
-        console.error('Error fetching user appointments:', error)
-        setError('Failed to load your appointments. Please try again.')
-        return
-      }
-
-      // Transform the data to match our appointment structure
-      const formattedAppointments = data.map((appointment) => {
-        // Create a new Date object from the ISO string
-        // Date constructor automatically converts UTC to local time zone
-        const appointmentTime = new Date(appointment.appointment_time)
-
-        return {
-          id: appointment.id,
-          name: appointment.name || 'Unnamed',
-          phone_number: appointment.phone_number || '',
-          service: appointment.service,
-          appointment_time: appointmentTime,
-        }
-      })
-
-      setUserAppointments(formattedAppointments)
-    } catch (error) {
-      console.error('Error:', error)
-      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
-    }
   }
 
   // Refetch appointments when current date changes
@@ -560,20 +462,23 @@ export default function CalendarDashboard() {
     })
   }
 
+  const getAvailableTimeSlots = (appointmentDate: any) => {
+    const appointmentsForDate = appointments.filter((appointment) =>
+      isSameDay(appointment.startTime, appointmentDate),
+    )
+
+    // Calculate available time slots
+    const availableSlots = calculateAvailableTimeSlots(
+      appointmentDate,
+      appointmentsForDate,
+    )
+    setAppointmentTimeSlots(availableSlots)
+  }
+
   // Update time slots when date changes
   useEffect(() => {
     if (appointmentDate) {
-      // Filter appointments for the selected date
-      const appointmentsForDate = appointments.filter((appointment) =>
-        isSameDay(appointment.startTime, appointmentDate),
-      )
-
-      // Calculate available time slots
-      const availableSlots = calculateAvailableTimeSlots(
-        appointmentDate,
-        appointmentsForDate,
-      )
-      setAppointmentTimeSlots(availableSlots)
+      getAvailableTimeSlots(appointmentDate)
     }
   }, [appointmentDate, appointments])
 
@@ -669,6 +574,21 @@ export default function CalendarDashboard() {
     const adjustedTime = new Date(appointmentTime)
     adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
 
+    const { data: selectedAppintment, error: selectedAppintmentError } =
+      await supabase
+        .from('appointments')
+        .select('*')
+        .eq('appointment_time', adjustedTime.toISOString())
+
+    if (selectedAppintment.length > 0) {
+      setAuthError('Termin već postoji!')
+      setShowModal(false)
+      fetchAppointments()
+
+      const date = new Date()
+      getAvailableTimeSlots(date)
+      return
+    }
     try {
       // Insert the new appointment into Supabase
       const { data, error } = await supabase
@@ -887,10 +807,15 @@ export default function CalendarDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen w-full flex-col bg-background">
       <header className="border-b p-4">
+        <audio
+          ref={notificationAudioRef}
+          src="/assets/sounds/notification.wav"
+        />
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-2">
+            <SidebarTrigger />
             <Button
               variant="default"
               className="mx-2 px-10"
@@ -917,19 +842,6 @@ export default function CalendarDashboard() {
       </header>
 
       <main className="flex-1 overflow-auto p-4">
-        {notification.visible && (
-          <div className="fixed bottom-4 right-4 z-50 max-w-md rounded-lg bg-red-600 p-4 text-white shadow-lg animate-in fade-in slide-in-from-bottom-5">
-            <div className="flex items-center">
-              <div className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-800">
-                <X className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-medium">{notification.message}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {authError && (
           <div className="mb-4 rounded-md bg-red-100 p-4 text-red-800">
             <p>{authError}</p>

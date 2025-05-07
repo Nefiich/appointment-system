@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 // This utility file handles timezone conversions for appointments
 
@@ -11,16 +11,16 @@
  */
 export function localToUTC(localDate) {
   // Create a new date to avoid modifying the original
-  const adjustedDate = new Date(localDate)
+  const adjustedDate = new Date(localDate);
 
   // Get the local timezone offset in minutes (e.g., UTC+2 would be -120)
-  const timezoneOffset = adjustedDate.getTimezoneOffset()
+  const timezoneOffset = adjustedDate.getTimezoneOffset();
 
   // Subtract the timezone offset to compensate (adding minutes for negative offset)
   // This effectively preserves the local time when stored as UTC
-  adjustedDate.setMinutes(adjustedDate.getMinutes() - timezoneOffset)
+  adjustedDate.setMinutes(adjustedDate.getMinutes() - timezoneOffset);
 
-  return adjustedDate
+  return adjustedDate;
 }
 
 /**
@@ -31,11 +31,11 @@ export function localToUTC(localDate) {
  */
 export function utcToLocal(utcDate) {
   // If the date is already a Date object, use it; otherwise create a new Date
-  const dateObj = utcDate instanceof Date ? utcDate : new Date(utcDate)
+  const dateObj = utcDate instanceof Date ? utcDate : new Date(utcDate);
 
   // The date constructor automatically handles the timezone conversion
   // from the UTC string to local time, so we don't need additional adjustment
-  return dateObj
+  return dateObj;
 }
 
 /**
@@ -52,7 +52,7 @@ export function formatDateTime(date) {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  })
+  });
 }
 
 /**
@@ -64,19 +64,19 @@ export function formatDateTime(date) {
  */
 export function prepareAppointmentTimeForStorage(selectedDate, selectedTime) {
   // Create a new date object to avoid modifying the original
-  const appointmentDateTime = new Date(selectedDate)
+  const appointmentDateTime = new Date(selectedDate);
 
   // Parse the selected time
-  const [hours, minutes] = selectedTime.split(':').map(Number)
+  const [hours, minutes] = selectedTime.split(':').map(Number);
 
   // Set the hours and minutes
-  appointmentDateTime.setHours(hours, minutes, 0, 0)
+  appointmentDateTime.setHours(hours, minutes, 0, 0);
 
   // Convert to UTC for storage
-  const utcDateTime = localToUTC(appointmentDateTime)
+  const utcDateTime = localToUTC(appointmentDateTime);
 
   // Return as ISO string for Supabase
-  return utcDateTime.toISOString()
+  return utcDateTime.toISOString();
 }
 
 /**
@@ -86,7 +86,7 @@ export function prepareAppointmentTimeForStorage(selectedDate, selectedTime) {
  * @returns {Date} - Date object adjusted for local display
  */
 export function getAppointmentTimeForDisplay(storedDateTimeString) {
-  return utcToLocal(storedDateTimeString)
+  return utcToLocal(storedDateTimeString);
 }
 
 /**
@@ -102,20 +102,20 @@ export function generateTimeSlots(
   endHour = 18,
   intervalMinutes = 30,
 ) {
-  const slots = []
+  const slots = [];
 
   for (let hour = startHour; hour <= endHour; hour++) {
     for (let minute = 0; minute < 60; minute += intervalMinutes) {
       // Stop if we've reached the end hour and are trying to add minutes
-      if (hour === endHour && minute > 0) break
+      if (hour === endHour && minute > 0) break;
 
-      const formattedHour = hour.toString().padStart(2, '0')
-      const formattedMinute = minute.toString().padStart(2, '0')
-      slots.push({ time: `${formattedHour}:${formattedMinute}` })
+      const formattedHour = hour.toString().padStart(2, '0');
+      const formattedMinute = minute.toString().padStart(2, '0');
+      slots.push({ time: `${formattedHour}:${formattedMinute}` });
     }
   }
 
-  return slots
+  return slots;
 }
 
 /**
@@ -129,7 +129,7 @@ export const SERVICE_DURATIONS = {
   4: 15, // Brijanje glave
   5: 30, // Šišanje + Brijanje
   6: 30, // Fade + Brijanje
-}
+};
 
 /**
  * Service names
@@ -142,7 +142,7 @@ export const SERVICE_NAMES = {
   4: 'Brijanje glave',
   5: 'Šišanje + Brijanje',
   6: 'Fade + Brijanje',
-}
+};
 
 /**
  * Gets the duration of a service in minutes
@@ -151,10 +151,10 @@ export const SERVICE_NAMES = {
  * @returns {number} - Duration in minutes
  */
 export function getServiceDuration(serviceId) {
-  if (serviceId === null || serviceId === undefined) return 30
+  if (serviceId === null || serviceId === undefined) return 30;
 
-  const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-  return SERVICE_DURATIONS[id] || 30
+  const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId;
+  return SERVICE_DURATIONS[id] || 30;
 }
 
 /**
@@ -164,8 +164,18 @@ export function getServiceDuration(serviceId) {
  * @returns {string} - Service name
  */
 export function getServiceName(serviceId) {
-  if (serviceId === null || serviceId === undefined) return 'Unknown service'
+  if (serviceId === null || serviceId === undefined) return 'Unknown service';
 
-  const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-  return SERVICE_NAMES[id] || 'Unknown service'
+  const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId;
+  return SERVICE_NAMES[id] || 'Unknown service';
 }
+
+export const dayMap: Record<string, string> = {
+  Monday: 'Ponedjeljak',
+  Tuesday: 'Utorak',
+  Wednesday: 'Srijeda',
+  Thursday: 'Četvrtak',
+  Friday: 'Petak',
+  Saturday: 'Subota',
+  Sunday: 'Nedjelja',
+};
