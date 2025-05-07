@@ -2,6 +2,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { getServiceName } from '@/hooks/useTimeSlots'
+import { format } from 'date-fns'
 
 export const UserAppointments = ({
   userAppointments,
@@ -9,7 +10,15 @@ export const UserAppointments = ({
   setShowCancelConfirmation,
 }) => {
   if (userAppointments.length === 0) return null
-
+  const bosnianWeekDays = [
+    'Nedjelja', // 0
+    'Ponedjeljak', // 1
+    'Utorak', // 2
+    'Srijeda', // 3
+    'Četvrtak', // 4
+    'Petak', // 5
+    'Subota', // 6
+  ]
   return (
     <div className="mx-5 mb-6 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 p-5 shadow-sm">
       <h2 className="mb-3 text-lg font-bold text-indigo-800">
@@ -45,7 +54,11 @@ export const UserAppointments = ({
                   {getServiceName(appointment.service.toString())}
                 </p>
                 <p className="text-sm text-gray-600">
-                  {appointment.appointment_time.toLocaleDateString('bs')} u{' '}
+                  {format(appointment.appointment_time, 'dd.MM.yyyy')}
+                  {', '}
+                  {
+                    bosnianWeekDays[appointment.appointment_time.getDay()]
+                  } u{' '}
                   {appointment.appointment_time.toLocaleTimeString('bs', {
                     hour: '2-digit',
                     minute: '2-digit',
