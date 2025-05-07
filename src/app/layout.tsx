@@ -44,7 +44,6 @@ export default function RootLayout({
         >
           <ReactQueryProvider>
             <SidebarProvider>
-              <AppSidebar />
               <main className="h-screen w-screen">{children}</main>
               <Toaster />
               <ReactQueryDevtools initialIsOpen={false} />
