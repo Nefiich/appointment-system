@@ -33,7 +33,7 @@ const items = [
   },
   {
     title: 'Korisnici',
-    url: '#',
+    url: '/admin/users',
     icon: User,
   },
   {
