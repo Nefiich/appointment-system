@@ -20,6 +20,15 @@ export function Confirmation({
   onCancel,
   onBack,
 }: ConfirmationProps) {
+  const bosnianWeekDays = [
+    'Nedjelja', // 0
+    'Ponedjeljak', // 1
+    'Utorak', // 2
+    'Srijeda', // 3
+    'Četvrtak', // 4
+    'Petak', // 5
+    'Subota', // 6
+  ]
   return (
     <div className="mx-auto max-w-md p-6">
       <div className="mb-6 flex items-center">
@@ -36,7 +45,9 @@ export function Confirmation({
           <div className="flex justify-between">
             <span className="text-muted-foreground">Datum:</span>
             <span className="font-medium">
-              {date ? format(date, 'dd.MM.yyyy') : 'Nije izabrano'}
+              {date
+                ? `${bosnianWeekDays[date.getDay()]}, ${format(date, 'dd.MM.yyyy')}`
+                : 'Nije izabrano'}
             </span>
           </div>
 
