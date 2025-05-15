@@ -85,6 +85,27 @@ const UserLoginSteps = () => {
           return
         }
 
+        const { data: existingUser, error: userCheckError } = await supabase
+          .from('users')
+          .select('custom_password_set')
+          .eq('phone_number', `+387${phoneNumber}`)
+          .single()
+
+        if (userCheckError && userCheckError.code !== 'PGRST116') {
+          console.error('Error checking user:', userCheckError)
+          setError('Error checking user information. Please try again.')
+          setLoading(false)
+          return
+        }
+
+        // If user exists and has custom_password_set = true, redirect to password login
+        if (existingUser && existingUser.custom_password_set) {
+          // Redirect to password login or show password input
+          setStep(3) // Assuming step 3 is for password login
+          setLoading(false)
+          return
+        }
+
         const { data, error } = await supabase.auth.signInWithOtp({
           phone: `+387${phoneNumber}`,
           options: {

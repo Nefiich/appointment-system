@@ -37,8 +37,8 @@ const items = [
     icon: User,
   },
   {
-    title: 'Otkazani termini',
-    url: '#',
+    title: 'Obavještenja',
+    url: '/admin/announcements',
     icon: CalendarMinus,
   },
 ]

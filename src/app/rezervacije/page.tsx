@@ -4,6 +4,7 @@ import { SideBar } from '@/components/SideBar'
 import { Button } from '@/components/ui/button'
 import { Confirmation } from '@/components/Confirmation'
 import { createBrowserClient } from '@/lib/supabase'
+import { format } from 'date-fns'
 
 // Import custom hooks
 import { useAppointments } from '@/hooks/useAppointments'
@@ -29,6 +30,7 @@ export default function UserDashboard() {
   const [selectedService, setSelectedService] = useState(null)
 
   const [blockedDates, setBlockedDates] = useState<Date[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
 
   // Fetch blocked dates from Supabase
   const fetchBlockedDates = async () => {
@@ -47,6 +49,29 @@ export default function UserDashboard() {
       setBlockedDates(parsedBlockedDates)
     } catch (error) {
       console.error('Error in fetchBlockedDates:', error)
+    }
+  }
+
+  // Fetch announcements from Supabase
+  const fetchAnnouncements = async () => {
+    try {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .lte('start_date', today.toISOString())
+        .gte('end_date', today.toISOString())
+
+      if (error) {
+        console.error('Error fetching announcements:', error)
+        return
+      }
+
+      setAnnouncements(data || [])
+    } catch (error) {
+      console.error('Error in fetchAnnouncements:', error)
     }
   }
 
@@ -88,6 +113,7 @@ export default function UserDashboard() {
         await fetchUserAppointments(session.user.id)
         await fetchAppointments()
         await fetchBlockedDates()
+        await fetchAnnouncements()
       }
     }
     getData()
@@ -271,6 +297,25 @@ export default function UserDashboard() {
       {loading && (
         <div className="mx-5 mb-4 rounded-md bg-blue-100 p-4 text-blue-800">
           <p>Učitavanje dostupnih termina...</p>
+        </div>
+      )}
+
+      {/* Announcements for today */}
+      {announcements.length > 0 && (
+        <div className="mx-5 mb-6 rounded-md bg-amber-50 p-4 border border-amber-200">
+          <h2 className="font-semibold text-amber-800 mb-2">Važna obavještenja</h2>
+          <div className="space-y-3">
+            {announcements.map((announcement) => (
+              <div key={announcement.id} className="text-sm">
+                <div className="flex items-center gap-2 text-amber-700 mb-1">
+                  <span className="font-medium">
+                    {format(new Date(announcement.start_date), 'dd.MM.yyyy')} - {format(new Date(announcement.end_date), 'dd.MM.yyyy')}
+                  </span>
+                </div>
+                <p className="text-gray-700">{announcement.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

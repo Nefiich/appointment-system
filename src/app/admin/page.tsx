@@ -42,6 +42,16 @@ type Appointment = {
   user_id?: string
 }
 
+const bosnianWeekDays = [
+  'Nedjelja', // 0
+  'Ponedjeljak', // 1
+  'Utorak', // 2
+  'Srijeda', // 3
+  'Četvrtak', // 4
+  'Petak', // 5
+  'Subota', // 6
+]
+
 type ViewType = 'day' | 'week' | 'month' | 'year'
 
 export default function CalendarDashboard() {
@@ -234,7 +244,12 @@ export default function CalendarDashboard() {
         (payload) => {
           console.log('Canceled appointment update received:', payload)
           if (payload.eventType === 'INSERT') {
-            const formatted = `${dayMap[format(parseISO(payload.new.appointment_time), 'EEEE')]}, ${format(parseISO(payload.new.appointment_time), "dd.MM 'u' HH:mm")}`
+            const formatted = `${
+              dayMap[format(parseISO(payload.new.appointment_time), 'EEEE')]
+            }, ${format(
+              parseISO(payload.new.appointment_time),
+              "dd.MM 'u' HH:mm",
+            )}`
 
             notificationAudioRef?.current?.play()
             toast({
@@ -727,7 +742,9 @@ export default function CalendarDashboard() {
           },
           body: JSON.stringify({
             to: appointmentData.phone_number,
-            message: `Vaš termin za ${getServiceName(appointmentData.service)} dana ${formattedDate} u ${formattedTime} je otkazan. Za više informacija kontaktirajte nas.`,
+            message: `Vaš termin za ${getServiceName(
+              appointmentData.service,
+            )} dana ${formattedDate} u ${formattedTime} je otkazan. Za više informacija kontaktirajte nas.`,
           }),
         })
 
@@ -1175,7 +1192,8 @@ export default function CalendarDashboard() {
               <div className="rounded-md bg-gray-50 p-3">
                 <h3 className="text-sm font-medium text-gray-500">Date</h3>
                 <p className="text-black">
-                  {selectedAppointment.startTime.toLocaleDateString('bs')}
+                  {format(selectedAppointment.startTime, 'dd.MM.yyyy')},{' '}
+                  {bosnianWeekDays[selectedAppointment.startTime.getDay()]}
                 </p>
               </div>
 
