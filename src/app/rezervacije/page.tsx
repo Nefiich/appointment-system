@@ -57,12 +57,8 @@ export default function UserDashboard() {
     try {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .lte('start_date', today.toISOString())
-        .gte('end_date', today.toISOString())
+
+      const { data, error } = await supabase.from('announcements').select('*')
 
       if (error) {
         console.error('Error fetching announcements:', error)
@@ -302,14 +298,17 @@ export default function UserDashboard() {
 
       {/* Announcements for today */}
       {announcements.length > 0 && (
-        <div className="mx-5 mb-6 rounded-md bg-amber-50 p-4 border border-amber-200">
-          <h2 className="font-semibold text-amber-800 mb-2">Važna obavještenja</h2>
+        <div className="mx-5 mb-6 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <h2 className="mb-2 font-semibold text-amber-800">
+            Važna obavještenja
+          </h2>
           <div className="space-y-3">
             {announcements.map((announcement) => (
               <div key={announcement.id} className="text-sm">
-                <div className="flex items-center gap-2 text-amber-700 mb-1">
+                <div className="mb-1 flex items-center gap-2 text-amber-700">
                   <span className="font-medium">
-                    {format(new Date(announcement.start_date), 'dd.MM.yyyy')} - {format(new Date(announcement.end_date), 'dd.MM.yyyy')}
+                    {format(new Date(announcement.start_date), 'dd.MM.yyyy')} -{' '}
+                    {format(new Date(announcement.end_date), 'dd.MM.yyyy')}
                   </span>
                 </div>
                 <p className="text-gray-700">{announcement.description}</p>
