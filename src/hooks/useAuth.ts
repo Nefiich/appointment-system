@@ -11,54 +11,91 @@ export const useAuth = () => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const {
-                    data: { session },
-                    error: sessionError,
-                } = await supabase.auth.getSession();
-                if (sessionError) {
-                    console.error('Session error:', sessionError);
-                    setError('Authentication error. Please try refreshing the page.');
-                    return;
-                }
-
-                if (!session) {
-                    console.log('No active session');
-                    // No need to logout if there's no session
-                    return;
-                }
-
-                // Get user ID from the session
-                const userId = session.user.id;
-
-                // Fetch user profile from the users table
-                const { data: userData, error: userError } = await supabase
-                    .from('users')
-                    .select('id, name, phone_number')
-                    .eq('user_id', userId)
-                    .single();
-
-                if (userError && userError.code === 'PGRST116') {
-                    // PGRST116 is the error code for "no rows returned"
-                    console.error('User not found in users table:', userError);
-                    // User exists in auth but not in users table
-                    await logoutAndClearData();
-                    return;
-                } else if (userError) {
-                    console.error('Error fetching user profile:', userError);
-                } else if (userData) {
-                    setUser(userData);
-                    setName(userData.name || '');
-                    setPhone(userData.phone_number || '');
-                }
-            } catch (error) {
-                console.error('Auth check error:', error);
-                setError('Failed to load user profile. Please try again.');
-            }
+        // Add this function to your useAuth hook
+        const persistSessionToLocalStorage = (session) => {
+          if (!session) return;
+          try {
+            localStorage.setItem('supabase_session', JSON.stringify(session));
+          } catch (error) {
+            console.error('Error saving session to localStorage:', error);
+          }
         };
+        
+        const getSessionFromLocalStorage = () => {
+          try {
+            const sessionStr = localStorage.getItem('supabase_session');
+            return sessionStr ? JSON.parse(sessionStr) : null;
+          } catch (error) {
+            console.error('Error retrieving session from localStorage:', error);
+            return null;
+          }
+        };
+        
+        // Modify your checkAuth function to use the localStorage fallback
+        const checkAuth = async () => {
+          try {
+            const {
+              data: { session },
+              error: sessionError,
+            } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+              console.error('Session error:', sessionError);
+              setError('Authentication error. Please try refreshing the page.');
+              return;
+            }
+            
+            // If no session from cookies, try localStorage
+            let activeSession = session;
+            if (!activeSession) {
+              console.log('No active session from cookies, trying localStorage');
+              const localSession = getSessionFromLocalStorage();
+              if (localSession) {
+                // Try to restore session from localStorage
+                const { data: { session: restoredSession } } = 
+                  await supabase.auth.setSession(localSession);
+                activeSession = restoredSession;
+              }
+            } else {
+              // If we have a session, persist it to localStorage as backup
+              persistSessionToLocalStorage(session);
+            }
+            
+            if (!activeSession) {
+              console.log('No active session');
+              return;
+            }
+            
+            // Get user ID from the session
+            const userId = activeSession.user.id;
 
-        checkAuth();
+            // Fetch user profile from the users table
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('id, name, phone_number')
+                .eq('user_id', userId)
+                .single();
+
+            if (userError && userError.code === 'PGRST116') {
+                // PGRST116 is the error code for "no rows returned"
+                console.error('User not found in users table:', userError);
+                // User exists in auth but not in users table
+                await logoutAndClearData();
+                return;
+            } else if (userError) {
+                console.error('Error fetching user profile:', userError);
+            } else if (userData) {
+                setUser(userData);
+                setName(userData.name || '');
+                setPhone(userData.phone_number || '');
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+            setError('Failed to load user profile. Please try again.');
+        }
+    };
+
+    checkAuth();
     }, []);
 
     // Function to logout user and clear browser data

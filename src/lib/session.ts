@@ -31,9 +31,9 @@ export async function createSession(userId: string) {
 
     cookieStore.set("session", session, {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NEXT_PUBLIC_NODE_ENV === 'production', // Allow non-HTTPS in development
         expires: expiresAt,
-        sameSite: "lax",
+        sameSite: "none", // Change from "lax" to "none" for better cross-site compatibility
         path: "/",
     });
 }
