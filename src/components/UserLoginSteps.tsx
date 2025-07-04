@@ -207,11 +207,11 @@ const UserLoginSteps = () => {
 
         console.log('DATA: ', data, error)
         console.log('UPDATE: ', updateData, updateError)
-
+        setOtp(['', '', '', '', '', ''])
         setStep(4)
       } else if (step === 4) {
         // Validate OTP
-        const passwordNew = password.join('')
+        const passwordNew = otp.join('')
 
         if (passwordNew.length !== 6) {
           setError('Unesite validan kod od 6 cifri!')
@@ -276,7 +276,7 @@ const UserLoginSteps = () => {
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       // Focus previous input on backspace if current input is empty
-      if (step === 2) {
+      if (step === 2 || step === 4) {
         inputRefs.current[index - 1].focus()
       } else {
         passwordInputRefs.current[index - 1].focus()
@@ -387,6 +387,12 @@ const UserLoginSteps = () => {
 
           {step === 3 && (
             <div className="space-y-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  OVAJ KOD JE ZA UPOTREBU U BUDUĆNOSTI, ZAPAMTITE GA
+                </AlertDescription>
+              </Alert>
               <div className="space-y-2">
                 <Label>
                   Molimo vas kreirajte kod koji cete koristiti u budućnosti za
@@ -419,7 +425,7 @@ const UserLoginSteps = () => {
                 <Label>Unesite vaš kod koji ste prethodno sačuvali!</Label>
               </div>
               <div className="flex justify-center space-x-2">
-                {password.map((digit, index) => (
+                {otp.map((digit, index) => (
                   <Input
                     key={index}
                     type="text"
@@ -428,11 +434,9 @@ const UserLoginSteps = () => {
                     pattern="\d"
                     className="h-12 w-12 text-center text-lg"
                     value={digit}
-                    onChange={(e) =>
-                      handlePasswordChange(index, e.target.value)
-                    }
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    ref={(el) => (passwordInputRefs.current[index] = el)}
+                    ref={(el) => (inputRefs.current[index] = el)}
                   />
                 ))}
               </div>
