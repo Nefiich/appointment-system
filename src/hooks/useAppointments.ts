@@ -1,177 +1,181 @@
 // Custom hook for appointments functionality
-import { useState, useEffect } from 'react';
-import { isSameDay } from 'date-fns';
-import { createBrowserClient } from '@/lib/supabase';
+import { useState, useEffect } from 'react'
+import { isSameDay } from 'date-fns'
+import { createBrowserClient } from '@/lib/supabase'
+import addHours from '@/utils/addHours'
 
-const supabase = createBrowserClient();
+const supabase = createBrowserClient()
 
 export const useAppointments = () => {
-    const [appointments, setAppointments] = useState([]);
-    const [userAppointments, setUserAppointments] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+  const [appointments, setAppointments] = useState([])
+  const [userAppointments, setUserAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-    // Fetch appointments from Supabase
-    const fetchAppointments = async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('appointments')
-                .select('*')
-                .gte('appointment_time', new Date().toISOString());
+  // Fetch appointments from Supabase
+  const fetchAppointments = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .gte('appointment_time', new Date().toISOString())
 
-            if (error) {
-                console.error('Error fetching appointments:', error);
-                setError('Failed to load available time slots. Please try again.');
-                return;
-            }
+      if (error) {
+        console.error('Error fetching appointments:', error)
+        setError('Failed to load available time slots. Please try again.')
+        return
+      }
 
-            // Transform the data to match our appointment structure
-            const formattedAppointments = data.map((appointment) => {
-                // Create a new Date object from the ISO string
-                // Date constructor automatically converts UTC to local time zone
-                const appointmentTime = new Date(appointment.appointment_time);
+      // Transform the data to match our appointment structure
+      const formattedAppointments = data.map((appointment) => {
+        // Create a new Date object from the ISO string
+        // Date constructor automatically converts UTC to local time zone
+        const appointmentTime = new Date(appointment.appointment_time)
 
-                return {
-                    id: appointment.id,
-                    name: appointment.name || 'Unnamed',
-                    phone_number: appointment.phone_number || '',
-                    service: appointment.service,
-                    appointment_time: appointmentTime,
-                };
-            });
-
-            setAppointments(formattedAppointments);
-        } catch (error) {
-            console.error('Error:', error);
-            setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.');
-        } finally {
-            setLoading(false);
+        return {
+          id: appointment.id,
+          name: appointment.name || 'Unnamed',
+          phone_number: appointment.phone_number || '',
+          service: appointment.service,
+          appointment_time: appointmentTime,
         }
-    };
+      })
 
-    // Fetch user appointments
-    const fetchUserAppointments = async (userId) => {
-        try {
-            const { data, error } = await supabase
-                .from('appointments')
-                .select('*')
-                .eq('user_id', userId)
-                .gte('appointment_time', new Date().toISOString())
-                .order('appointment_time', { ascending: true })
-                .limit(3);
+      setAppointments(formattedAppointments)
+    } catch (error) {
+      console.error('Error:', error)
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-            if (error) {
-                console.error('Error fetching user appointments:', error);
-                setError('Failed to load your appointments. Please try again.');
-                return;
-            }
+  // Fetch user appointments
+  const fetchUserAppointments = async (userId) => {
+    const offset = -new Date().getTimezoneOffset() / 60
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('appointment_time', addHours(new Date().toISOString(), offset))
+        .order('appointment_time', { ascending: true })
+        .limit(3)
 
-            // Transform the data to match our appointment structure
-            const formattedAppointments = data.map((appointment) => {
-                const appointmentTime = new Date(appointment.appointment_time);
+      console.log('DATA: ', data, addHours(new Date().toISOString(), offset))
 
-                return {
-                    id: appointment.id,
-                    name: appointment.name || 'Unnamed',
-                    phone_number: appointment.phone_number || '',
-                    service: appointment.service,
-                    appointment_time: appointmentTime,
-                };
-            });
+      if (error) {
+        console.error('Error fetching user appointments:', error)
+        setError('Failed to load your appointments. Please try again.')
+        return
+      }
 
-            setUserAppointments(formattedAppointments);
-        } catch (error) {
-            console.error('Error:', error);
-            setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.');
+      // Transform the data to match our appointment structure
+      const formattedAppointments = data.map((appointment) => {
+        const appointmentTime = new Date(appointment.appointment_time)
+
+        return {
+          id: appointment.id,
+          name: appointment.name || 'Unnamed',
+          phone_number: appointment.phone_number || '',
+          service: appointment.service,
+          appointment_time: appointmentTime,
         }
-    };
+      })
 
-    // Cancel appointment
-    const cancelAppointment = async (appointmentId) => {
-        try {
-            // First, get the appointment details before deleting
-            const { data: appointmentData, error: fetchError } = await supabase
-                .from('appointments')
-                .select('*')
-                .eq('id', appointmentId)
-                .single();
+      setUserAppointments(formattedAppointments)
+    } catch (error) {
+      console.error('Error:', error)
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
+    }
+  }
 
-            if (fetchError) {
-                console.error('Error fetching appointment details:', fetchError);
-                setError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.');
-                return false;
-            }
+  // Cancel appointment
+  const cancelAppointment = async (appointmentId) => {
+    try {
+      // First, get the appointment details before deleting
+      const { data: appointmentData, error: fetchError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', appointmentId)
+        .single()
 
-            // Insert into canceled_appointments table
-            const { error: insertError } = await supabase
-                .from('canceled_appointments')
-                .insert([
-                    {
-                        original_id: appointmentData.id,
-                        name: appointmentData.name,
-                        phone_number: appointmentData.phone_number,
-                        service: appointmentData.service,
-                        appointment_time: appointmentData.appointment_time,
-                        user_id: appointmentData.user_id,
-                    },
-                ]);
+      if (fetchError) {
+        console.error('Error fetching appointment details:', fetchError)
+        setError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
+        return false
+      }
 
-            if (insertError) {
-                console.error('Error recording cancellation:', insertError);
-                // Continue with deletion even if recording fails
-            }
+      // Insert into canceled_appointments table
+      const { error: insertError } = await supabase
+        .from('canceled_appointments')
+        .insert([
+          {
+            original_id: appointmentData.id,
+            name: appointmentData.name,
+            phone_number: appointmentData.phone_number,
+            service: appointmentData.service,
+            appointment_time: appointmentData.appointment_time,
+            user_id: appointmentData.user_id,
+          },
+        ])
 
-            // Delete from appointments table
-            const { data: deleteData, error: deleteError } = await supabase
-                .from('appointments')
-                .delete()
-                .eq('id', appointmentId)
-                .select();
+      if (insertError) {
+        console.error('Error recording cancellation:', insertError)
+        // Continue with deletion even if recording fails
+      }
 
-            console.log('Delete response:', deleteData, deleteError);
+      // Delete from appointments table
+      const { data: deleteData, error: deleteError } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId)
+        .select()
 
-            if (deleteError) {
-                console.error('Error cancelling appointment:', deleteError);
-                setError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.');
-                return false;
-            }
+      console.log('Delete response:', deleteData, deleteError)
 
-            // Refresh appointments
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
+      if (deleteError) {
+        console.error('Error cancelling appointment:', deleteError)
+        setError('Neuspjelo otkazivanje termina. Molimo pokušajte ponovo.')
+        return false
+      }
 
-            if (session) {
-                await fetchUserAppointments(session.user.id);
-                await fetchAppointments();
-            }
+      // Refresh appointments
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-            return true;
-        } catch (error) {
-            console.error('Error:', error);
-            setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.');
-            return false;
-        }
-    };
+      if (session) {
+        await fetchUserAppointments(session.user.id)
+        await fetchAppointments()
+      }
 
-    // Get appointments for a specific date
-    const getAppointmentsForDate = (date) => {
-        return appointments.filter((appointment) =>
-            isSameDay(appointment.appointment_time, date)
-        );
-    };
+      return true
+    } catch (error) {
+      console.error('Error:', error)
+      setError('Nešto je pošlo po zlu. Molimo pokušajte kasnije.')
+      return false
+    }
+  }
 
-    return {
-        appointments,
-        userAppointments,
-        loading,
-        error,
-        setError,
-        fetchAppointments,
-        fetchUserAppointments,
-        cancelAppointment,
-        getAppointmentsForDate,
-        setUserAppointments
-    };
-};
+  // Get appointments for a specific date
+  const getAppointmentsForDate = (date) => {
+    return appointments.filter((appointment) =>
+      isSameDay(appointment.appointment_time, date),
+    )
+  }
+
+  return {
+    appointments,
+    userAppointments,
+    loading,
+    error,
+    setError,
+    fetchAppointments,
+    fetchUserAppointments,
+    cancelAppointment,
+    getAppointmentsForDate,
+    setUserAppointments,
+  }
+}
