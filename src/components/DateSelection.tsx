@@ -11,9 +11,10 @@ export const DateSelection = ({
   endDate,
   defaultMonth,
   userAppointments = [], // User's existing appointments
+  disabledDays, // Function from useBookingDates that includes vacation days check
 }) => {
-  // Custom date filter function to disable Sundays and dates outside the booking window
-  const isDateDisabled = (date: Date) => {
+  // Use the provided disabledDays function if available, otherwise use local implementation
+  const isDateDisabled = disabledDays || ((date: Date) => {
     return (
       // Check if it's Sunday (0 = Sunday, 1 = Monday, etc.)
       getDay(date) === 0 ||
@@ -26,7 +27,7 @@ export const DateSelection = ({
       // Check if date is in explicitly blocked dates
       blockedDates.some((blockedDate) => isSameDay(blockedDate, date))
     )
-  }
+  })
 
   return (
     <div className="mx-5 mt-5">

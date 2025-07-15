@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { isAfter, isBefore, addDays, getDay } from 'date-fns';
 
-export const useBookingDates = (userAppointments) => {
+export const useBookingDates = (userAppointments, blockedDates = []) => {
     // Set the minimum booking date - either April 2, 2025 or today, whichever is later
     const minBookingDate = new Date(2025, 3, 2); // April 2, 2025
     const today = new Date();
@@ -29,7 +29,13 @@ export const useBookingDates = (userAppointments) => {
             // After end date (current start date + 7 days)
             isAfter(date, endDate) ||
             // The user already has 3 appointments
-            userAppointments.length >= 3
+            userAppointments.length >= 3 ||
+            // Check if date is in blocked dates (vacation days)
+            blockedDates.some(blockedDate => 
+                blockedDate.getFullYear() === date.getFullYear() && 
+                blockedDate.getMonth() === date.getMonth() && 
+                blockedDate.getDate() === date.getDate()
+            )
         );
     };
 

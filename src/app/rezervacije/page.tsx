@@ -87,7 +87,7 @@ export default function UserDashboard() {
   const { user, name, setName, phone, setPhone } = useAuth()
 
   const { date, setDate, startDate, endDate, defaultMonth, disabledDays } =
-    useBookingDates(userAppointments)
+    useBookingDates(userAppointments, blockedDates)
 
   const { timeSlots, selectedTime, setSelectedTime } = useTimeSlots(
     date,
@@ -340,7 +340,7 @@ export default function UserDashboard() {
       <DateSelection
         date={date}
         setDate={setDate}
-        disabledDays={disabledDays()}
+        disabledDays={disabledDays}
         blockedDates={blockedDates}
         startDate={startDate}
         endDate={endDate}
