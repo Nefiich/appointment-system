@@ -151,6 +151,14 @@ export default function UserDashboard() {
       return
     }
 
+    if (
+      blockedDates.filter((blocked) => blocked.getDate() === date.getDate())
+        .length > 0
+    ) {
+      setError('Izabrani datum je godisnji!')
+      return
+    }
+
     setShowConfirmation(true)
   }
 
