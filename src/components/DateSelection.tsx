@@ -12,12 +12,13 @@ export const DateSelection = ({
   defaultMonth,
   userAppointments = [], // User's existing appointments
   disabledDays, // Function from useBookingDates that includes vacation days check
+  allowSundayBookings = false, // Whether Sunday bookings are allowed
 }) => {
   // Use the provided disabledDays function if available, otherwise use local implementation
   const isDateDisabled = disabledDays || ((date: Date) => {
     return (
-      // Check if it's Sunday (0 = Sunday, 1 = Monday, etc.)
-      getDay(date) === 0 ||
+      // Check if it's Sunday (0 = Sunday, 1 = Monday, etc.) - only if not allowed
+      (!allowSundayBookings && getDay(date) === 0) ||
       // Before start date
       isBefore(date, startDate) ||
       // After end date
@@ -53,7 +54,7 @@ export const DateSelection = ({
             day: (props) =>
               cn(
                 'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
-                getDay(props.date) === 0 && 'text-red-500', // Sunday text in red
+                !allowSundayBookings && getDay(props.date) === 0 && 'text-red-500', // Sunday text in red (only if not allowed)
                 isDateDisabled(props.date) && 'text-gray-300 line-through', // Add visual indication for disabled dates
               ),
           }}
@@ -61,8 +62,12 @@ export const DateSelection = ({
             <div className="mt-3 text-center text-sm text-gray-500">
               Rezervacija moguća za period {format(startDate, 'dd.MM.')} -{' '}
               {format(endDate, 'dd.MM.yyyy')}
-              <br />
-              Nedjelja je neradni dan
+              {!allowSundayBookings && (
+                <>
+                  <br />
+                  Nedjelja je neradni dan
+                </>
+              )}
             </div>
           }
         />

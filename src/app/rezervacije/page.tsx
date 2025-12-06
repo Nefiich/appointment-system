@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useTimeSlots, getServiceName } from '@/hooks/useTimeSlots'
 import { useBookingDates } from '@/hooks/useBookingDates'
 import { useAppointmentBooking } from '@/hooks/useAppointmentBooking'
+import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
 
 // Import custom components
 import { UserAppointments } from '@/components/UserAppointments'
@@ -72,6 +73,8 @@ export default function UserDashboard() {
   }
 
   // Initialize custom hooks
+  const { settings, services, getServiceName: getDynamicServiceName } = useAppointmentSettings()
+
   const {
     appointments,
     userAppointments,
@@ -87,12 +90,20 @@ export default function UserDashboard() {
   const { user, name, setName, phone, setPhone } = useAuth()
 
   const { date, setDate, startDate, endDate, defaultMonth, disabledDays } =
-    useBookingDates(userAppointments, blockedDates)
+    useBookingDates(
+      userAppointments,
+      blockedDates,
+      settings.bookingWindowDays,
+      settings.maxAppointmentsPerUser,
+      settings.allowSundayBookings
+    )
 
   const { timeSlots, selectedTime, setSelectedTime } = useTimeSlots(
     date,
     selectedService,
     appointments,
+    settings.businessStartTime,
+    settings.businessEndTime
   )
 
   const { showConfirmation, setShowConfirmation, handleBookAppointment } =
@@ -151,11 +162,9 @@ export default function UserDashboard() {
       return
     }
 
-    if (
-      blockedDates.filter((blocked) => blocked.getDate() === date.getDate())
-        .length > 0
-    ) {
-      setError('Izabrani datum je godisnji!')
+    // Check if selected date is a vacation day
+    if (blockedDates.some((blocked) => isSameDay(blocked, date))) {
+      setError('Izabrani datum je godišnji odmor!')
       return
     }
 
@@ -353,6 +362,7 @@ export default function UserDashboard() {
         startDate={startDate}
         endDate={endDate}
         defaultMonth={defaultMonth}
+        allowSundayBookings={settings.allowSundayBookings}
       />
 
       {/* Service Selection */}

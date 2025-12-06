@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
 
 const SelectableItem = ({ title, content, isSelected, onClick }) => {
   return (
@@ -22,28 +23,38 @@ interface SelectableGridProps {
 
 const SelectableGrid = ({ onSelect = () => {} }: SelectableGridProps) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const { services, loading } = useAppointmentSettings()
 
-  const items = [
-    { id: 0, title: '10min', content: 'Brijanje' },
-    { id: 1, title: '10min', content: 'Šišanje do kože' },
-    { id: 2, title: '15min', content: 'Šišanje' },
-    { id: 3, title: '20min', content: 'Fade' },
-    { id: 4, title: '15min', content: 'Brijanje glave' },
-    { id: 5, title: '30min', content: 'Šišanje + Brijanje' },
-    { id: 6, title: '30min', content: 'Fade + Brijanje' },
-  ]
+  // Only show active services
+  const activeServices = services.filter((s) => s.is_active)
+
+  if (loading) {
+    return (
+      <div className="flex w-full items-center justify-center py-8">
+        <p className="text-gray-500">Učitavanje usluga...</p>
+      </div>
+    )
+  }
+
+  if (activeServices.length === 0) {
+    return (
+      <div className="flex w-full items-center justify-center py-8">
+        <p className="text-gray-500">Nema dostupnih usluga</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex w-full flex-wrap">
-      {items.map((item, index) => (
+      {activeServices.map((service, index) => (
         <SelectableItem
-          key={index}
-          title={item.title}
-          content={item.content}
+          key={service.id}
+          title={`${service.duration_minutes}min`}
+          content={service.name_bs}
           isSelected={selectedIndex === index}
           onClick={() => {
             setSelectedIndex(index === selectedIndex ? null : index)
-            onSelect(index)
+            onSelect(service.id)
           }}
         />
       ))}

@@ -52,6 +52,17 @@ const bosnianWeekDays = [
   'Subota', // 6
 ]
 
+// Bosnian short day names for calendar header
+const bosnianShortDays = [
+  'Ned', // 0 - Sunday
+  'Pon', // 1 - Monday
+  'Uto', // 2 - Tuesday
+  'Sri', // 3 - Wednesday
+  'Čet', // 4 - Thursday
+  'Pet', // 5 - Friday
+  'Sub', // 6 - Saturday
+]
+
 type ViewType = 'day' | 'week' | 'month' | 'year'
 
 export default function CalendarDashboard() {
@@ -898,7 +909,7 @@ export default function CalendarDashboard() {
                 {/* Day headers */}
                 {weekDays.map((day, i) => (
                   <div key={i} className="border-b border-r p-2 text-center">
-                    <div className="font-semibold">{format(day, 'EEE')}</div>
+                    <div className="font-semibold">{bosnianShortDays[day.getDay()]}</div>
                     <div className="text-sm text-muted-foreground">
                       {format(day, 'd')}
                     </div>

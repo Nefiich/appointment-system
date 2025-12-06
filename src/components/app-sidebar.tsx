@@ -6,6 +6,7 @@ import {
   Search,
   Settings,
   User,
+  Scissors,
 } from 'lucide-react'
 
 import {
@@ -27,6 +28,11 @@ const items = [
     icon: Home,
   },
   {
+    title: 'Usluge',
+    url: '/admin/services',
+    icon: Scissors,
+  },
+  {
     title: 'Godišnji',
     url: '/admin/vacation/',
     icon: Calendar,
@@ -40,6 +46,11 @@ const items = [
     title: 'Obavještenja',
     url: '/admin/announcements',
     icon: CalendarMinus,
+  },
+  {
+    title: 'Postavke',
+    url: '/admin/settings',
+    icon: Settings,
   },
 ]
 

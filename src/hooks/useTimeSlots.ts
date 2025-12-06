@@ -2,7 +2,13 @@
 import { useState, useEffect } from 'react';
 import { isSameDay, isAfter, isBefore, addDays } from 'date-fns';
 
-export const useTimeSlots = (date, selectedService, appointments) => {
+export const useTimeSlots = (
+    date,
+    selectedService,
+    appointments,
+    businessStartTime = '08:30',
+    businessEndTime = '18:30'
+) => {
     const [timeSlots, setTimeSlots] = useState([]);
     const [selectedTime, setSelectedTime] = useState(null);
 
@@ -48,8 +54,8 @@ export const useTimeSlots = (date, selectedService, appointments) => {
         );
 
         const slots = [];
-        const businessStart = parseTime('08:30');
-        const businessEnd = parseTime('18:30');
+        const businessStart = parseTime(businessStartTime);
+        const businessEnd = parseTime(businessEndTime);
         let startOfDay = businessStart;
         let endOfDay = businessEnd;
 

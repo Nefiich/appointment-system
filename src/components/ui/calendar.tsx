@@ -9,6 +9,9 @@ import { buttonVariants } from "@/components/ui/button"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
+// Bosnian day abbreviations
+const bosnianDayAbbreviations = ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub']
+
 function Calendar({
   className,
   classNames,
@@ -18,6 +21,12 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      weekStartsOn={1}
+      formatters={{
+        formatWeekdayName: (date: Date) => {
+          return bosnianDayAbbreviations[date.getDay()]
+        },
+      }}
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
