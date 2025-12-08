@@ -4,7 +4,7 @@ import { SideBar } from '@/components/SideBar'
 import { Button } from '@/components/ui/button'
 import { Confirmation } from '@/components/Confirmation'
 import { createBrowserClient } from '@/lib/supabase'
-import { format } from 'date-fns'
+import { format, isSameDay } from 'date-fns'
 
 // Import custom hooks
 import { useAppointments } from '@/hooks/useAppointments'

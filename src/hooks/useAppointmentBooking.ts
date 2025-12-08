@@ -119,8 +119,11 @@ export const useAppointmentBooking = (
 
             // Update user profile if not already set
             const { error: updateError } = await supabase.from('users').upsert({
+                user_id: userId,
                 name: name,
                 phone_number: phone,
+            }, {
+                onConflict: 'user_id'
             });
 
             if (updateError) {
