@@ -1,24 +1,35 @@
 // Custom hook for time slot management
 import { useState, useEffect } from 'react';
-import { isSameDay, isAfter, isBefore, addDays } from 'date-fns';
+import { isSameDay } from 'date-fns';
+import { getServiceDuration } from '@/lib/appointment-utils';
+
+interface Appointment {
+    appointment_time: Date;
+    service: string | number;
+}
+
+interface TimeSlot {
+    time: string;
+}
 
 export const useTimeSlots = (
-    date,
-    selectedService,
-    appointments,
+    date: Date | null,
+    selectedService: string | number | null,
+    appointments: Appointment[],
     businessStartTime = '08:30',
-    businessEndTime = '18:30'
+    businessEndTime = '18:30',
+    timeSlotInterval = 30
 ) => {
-    const [timeSlots, setTimeSlots] = useState([]);
-    const [selectedTime, setSelectedTime] = useState(null);
+    const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+    const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
     // Helper functions for time slot calculation
-    const parseTime = (timeStr) => {
+    const parseTime = (timeStr: string) => {
         const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
     };
 
-    const formatTime = (minutes) => {
+    const formatTime = (minutes: number) => {
         const hours = Math.floor(minutes / 60);
         const mins = minutes % 60;
         return `${hours.toString().padStart(2, '0')}:${mins
@@ -26,28 +37,8 @@ export const useTimeSlots = (
             .padStart(2, '0')}`;
     };
 
-    // Get service duration in minutes
-    const getServiceDuration = (serviceId) => {
-        if (serviceId === null || serviceId === undefined) return 30;
-
-        const id =
-            typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId;
-
-        const serviceDurations = {
-            0: 10, // Brijanje
-            1: 10, // Šišanje do kože
-            2: 15, // Šišanje
-            3: 20, // Fade
-            4: 15, // Brijanje glave
-            5: 30, // Šišanje + Brijanje
-            6: 30, // Fade + Brijanje
-        };
-
-        return serviceDurations[id] || 30;
-    };
-
     // Calculate available time slots based on existing appointments for the selected date
-    const calculateAvailableTimeSlots = (date, existingAppointments) => {
+    const calculateAvailableTimeSlots = (date: Date, existingAppointments: Appointment[]) => {
         // Filter appointments for the selected date
         const appointmentsForDate = existingAppointments.filter((appointment) =>
             isSameDay(appointment.appointment_time, date),
@@ -64,11 +55,11 @@ export const useTimeSlots = (
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
 
-        // If selected date is today, adjust start time to current time (rounded to next 30 min interval)
+        // If selected date is today, adjust start time to current time (rounded to next interval)
         if (isSameDay(date, now)) {
             let startMinutes = currentHour * 60 + currentMinute;
-            // Round up to the next 30-minute interval
-            startMinutes = Math.ceil(startMinutes / 30) * 30;
+            // Round up to the next interval
+            startMinutes = Math.ceil(startMinutes / timeSlotInterval) * timeSlotInterval;
 
             // Ensure start time is within business hours
             startOfDay = Math.max(startMinutes, businessStart);
@@ -79,9 +70,9 @@ export const useTimeSlots = (
             date.getMonth() === now.getMonth() &&
             date.getDate() === now.getDate() + 7
         ) {
-            let cutoffMinutes = currentHour * 60 + currentMinute + 30; // Current time + 30 min
-            // Round up to the next 30-minute interval
-            cutoffMinutes = Math.ceil(cutoffMinutes / 30) * 30;
+            let cutoffMinutes = currentHour * 60 + currentMinute + timeSlotInterval; // Current time + interval
+            // Round up to the next interval
+            cutoffMinutes = Math.ceil(cutoffMinutes / timeSlotInterval) * timeSlotInterval;
 
             // Ensure we're still showing slots within business hours
             endOfDay = Math.min(cutoffMinutes, businessEnd);
@@ -112,11 +103,11 @@ export const useTimeSlots = (
         );
 
         if (sortedAppointments.length === 0) {
-            // If no appointments, generate slots every 30 minutes
+            // If no appointments, generate slots every interval
             let currentTime = startOfDay;
             while (currentTime < endOfDay) {
                 slots.push({ time: formatTime(currentTime) });
-                currentTime += 30;
+                currentTime += timeSlotInterval;
             }
         } else {
             // Generate slots based on appointment end times
@@ -126,7 +117,7 @@ export const useTimeSlots = (
                 // Add slots until this appointment starts
                 while (currentTime < parseTime(appointment.time)) {
                     slots.push({ time: formatTime(currentTime) });
-                    currentTime += 30;
+                    currentTime += timeSlotInterval;
                 }
                 // Move to the end of this appointment
                 currentTime = parseTime(appointment.time) + appointment.duration;
@@ -135,7 +126,7 @@ export const useTimeSlots = (
             // Add remaining slots after last appointment
             while (currentTime < endOfDay) {
                 slots.push({ time: formatTime(currentTime) });
-                currentTime += 30;
+                currentTime += timeSlotInterval;
             }
         }
 
@@ -143,14 +134,14 @@ export const useTimeSlots = (
     };
 
     // Check if a slot is available for a specific duration
-    const isSlotAvailable = (slot, duration, existingAppointments) => {
+    const isSlotAvailable = (slot: string, duration: number, existingAppointments: Appointment[]) => {
         const slotStart = parseTime(slot);
         const slotEnd = slotStart + duration;
 
-        if (slotEnd > parseTime('18:30')) return false;
+        if (slotEnd > parseTime(businessEndTime)) return false;
 
         // Convert appointments to a format with time and duration
-        const formattedAppointments = existingAppointments.map((appointment) => {
+        const formattedAppointments = existingAppointments.map((appointment: Appointment) => {
             const time = `${appointment.appointment_time
                 .getHours()
                 .toString()
@@ -179,7 +170,7 @@ export const useTimeSlots = (
     };
 
     // NEW FUNCTION: Verify slot availability in real-time before booking
-    const verifySlotAvailability = async (supabase, date, timeSlot, serviceId) => {
+    const verifySlotAvailability = async (supabase: any, date: Date, timeSlot: TimeSlot, serviceId: string | number | null) => {
         try {
             // Format the date and time for the query
             const appointmentTime = new Date(date);
@@ -257,22 +248,4 @@ export const useTimeSlots = (
     };
 };
 
-// Helper function to get service name
-export const getServiceName = (serviceId) => {
-    if (serviceId === null || serviceId === undefined) return 'Unknown service';
-
-    const id =
-        typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId;
-
-    const serviceNames = {
-        0: 'Brijanje',
-        1: 'Šišanje do kože',
-        2: 'Šišanje',
-        3: 'Fade',
-        4: 'Brijanje glave',
-        5: 'Šišanje + Brijanje',
-        6: 'Fade + Brijanje',
-    };
-
-    return serviceNames[id] || 'Unknown service';
-};
+export { getServiceName } from '@/lib/appointment-utils';

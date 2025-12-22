@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Confirmation } from '@/components/Confirmation'
 import { createBrowserClient } from '@/lib/supabase'
 import { format, isSameDay } from 'date-fns'
+import { getServiceDuration, getServiceName } from '@/lib/appointment-utils'
 
 // Import custom hooks
 import { useAppointments } from '@/hooks/useAppointments'
 import { useAuth } from '@/hooks/useAuth'
-import { useTimeSlots, getServiceName } from '@/hooks/useTimeSlots'
+import { useTimeSlots } from '@/hooks/useTimeSlots'
 import { useBookingDates } from '@/hooks/useBookingDates'
 import { useAppointmentBooking } from '@/hooks/useAppointmentBooking'
 import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
@@ -27,8 +28,8 @@ const supabase = createBrowserClient()
 export default function UserDashboard() {
   // State for appointment cancellation
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false)
-  const [appointmentToCancel, setAppointmentToCancel] = useState(null)
-  const [selectedService, setSelectedService] = useState(null)
+  const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null)
+  const [selectedService, setSelectedService] = useState<string | number | null>(null)
 
   const [blockedDates, setBlockedDates] = useState<Date[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
@@ -103,7 +104,8 @@ export default function UserDashboard() {
     selectedService,
     appointments,
     settings.businessStartTime,
-    settings.businessEndTime
+    settings.businessEndTime,
+    settings.timeSlotInterval
   )
 
   const { showConfirmation, setShowConfirmation, handleBookAppointment } =
@@ -184,8 +186,9 @@ export default function UserDashboard() {
   const handleConfirm = async () => {
     // First, check if the time slot is still available
     try {
+      if (!selectedTime) return;
       // Parse the selected time
-      const [hours, minutes] = selectedTime.time.split(':').map(Number)
+      const [hours, minutes] = selectedTime.split(':').map(Number)
 
       // Create appointment time
       const appointmentTime = new Date(date)
@@ -195,26 +198,6 @@ export default function UserDashboard() {
       const timezoneOffset = appointmentTime.getTimezoneOffset()
       const adjustedTime = new Date(appointmentTime)
       adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
-
-      // Calculate the end time based on service duration
-      const getServiceDuration = (serviceId) => {
-        if (serviceId === null || serviceId === undefined) return 30
-
-        const id =
-          typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-
-        const serviceDurations = {
-          0: 10, // Brijanje
-          1: 10, // Šišanje do kože
-          2: 15, // Šišanje
-          3: 20, // Fade
-          4: 15, // Brijanje glave
-          5: 30, // Šišanje + Brijanje
-          6: 30, // Fade + Brijanje
-        }
-
-        return serviceDurations[id] || 30
-      }
 
       const serviceDuration = getServiceDuration(selectedService)
       const endTime = new Date(adjustedTime)

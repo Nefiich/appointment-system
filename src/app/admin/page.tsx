@@ -22,8 +22,9 @@ import SelectableGrid from '@/components/SelectableGrid'
 import { ScrollablePills } from '@/components/ScrollablePills'
 import { start } from 'repl'
 import { toast } from '@/hooks/use-toast'
-import { dayMap } from '@/lib/appointment-utils'
+import { dayMap, getServiceDuration, getServiceName } from '@/lib/appointment-utils'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
 
 // Initialize Supabase client
 const supabase = createBrowserClient()
@@ -84,17 +85,34 @@ export default function CalendarDashboard() {
 
   const [blockedDates, setBlockedDates] = useState<Date[]>([])
 
+  const { settings, loading: settingsLoading } = useAppointmentSettings()
+
   // Generate the days of the week starting from today
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentDate, i))
 
-  // Generate time slots from 8 AM to 6 PM
-  const timeSlots = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+  // Generate time slots based on settings
+  const timeSlots = React.useMemo(() => {
+    const start = settings?.businessStartTime
+      ? parseInt(settings.businessStartTime.split(':')[0])
+      : 8
+    const end = settings?.businessEndTime
+      ? parseInt(settings.businessEndTime.split(':')[0])
+      : 18
+
+    // Ensure we cover the full range of hours
+    const slots = []
+    for (let i = start; i <= end; i++) {
+      slots.push(i)
+    }
+    return slots
+  }, [settings?.businessStartTime, settings?.businessEndTime])
+
   const [showModal, setShowModal] = useState(false)
   const [appointmentDate, setAppointmentDate] = useState<Date | undefined>(
     new Date(),
   )
   const [selectedTime, setSelectedTime] = useState(null)
-  const [selectedService, setSelectedService] = useState(null)
+  const [selectedService, setSelectedService] = useState<string | number | null>(null)
 
   // Check authentication status on component mount and redirect if not authenticated
   useEffect(() => {
@@ -327,7 +345,7 @@ export default function CalendarDashboard() {
   }
 
   // Helper function to assign colors based on service
-  const getColorForService = (service: string | null) => {
+  const getColorForService = (service: string | number | null) => {
     if (service === null || service === undefined) return 'blue'
 
     // Convert string to number if needed
@@ -346,26 +364,6 @@ export default function CalendarDashboard() {
     }
 
     return serviceColors[serviceId] || 'gray'
-  }
-
-  // Get service duration in minutes
-  const getServiceDuration = (serviceId: string | number | null) => {
-    if (serviceId === null || serviceId === undefined) return 30
-
-    const id =
-      typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-
-    const serviceDurations: Record<number, number> = {
-      0: 10, // Brijanje
-      1: 10, // Šišanje do kože
-      2: 15, // Šišanje
-      3: 20, // Fade
-      4: 15, // Brijanje glave
-      5: 30, // Šišanje + Brijanje
-      6: 30, // Fade + Brijanje
-    }
-
-    return serviceDurations[id] || 30
   }
 
   // Time manipulation helpers
@@ -393,8 +391,8 @@ export default function CalendarDashboard() {
     )
 
     const slots = []
-    const endOfDay = parseTime('18:30')
-    const startOfDay = parseTime('08:30')
+    const endOfDay = parseTime(settings?.businessEndTime || '18:30')
+    const startOfDay = parseTime(settings?.businessStartTime || '08:30')
 
     // Convert appointments to a format with time and duration
     const formattedAppointments = appointmentsForDate.map((appointment) => {
@@ -407,7 +405,7 @@ export default function CalendarDashboard() {
         .padStart(2, '0')}`
 
       // Get duration from service ID
-      const duration = getServiceDuration(appointment.service)
+      const duration = getServiceDuration(appointment.service ?? null)
 
       return {
         time,
@@ -421,21 +419,23 @@ export default function CalendarDashboard() {
     )
 
     if (sortedAppointments.length === 0) {
-      // If no appointments, generate slots every 30 minutes
+      // If no appointments, generate slots every interval
       let currentTime = startOfDay
+      const interval = settings?.timeSlotInterval || 30
       while (currentTime < endOfDay) {
         slots.push({ time: formatTime(currentTime) })
-        currentTime += 30
+        currentTime += interval
       }
     } else {
       // Generate slots based on appointment end times
       let currentTime = startOfDay
+      const interval = settings?.timeSlotInterval || 30
 
       for (const appointment of sortedAppointments) {
         // Add slots until this appointment starts
         while (currentTime < parseTime(appointment.time)) {
           slots.push({ time: formatTime(currentTime) })
-          currentTime += 30
+          currentTime += interval
         }
         // Move to the end of this appointment
         currentTime = parseTime(appointment.time) + appointment.duration
@@ -444,7 +444,7 @@ export default function CalendarDashboard() {
       // Add remaining slots after last appointment
       while (currentTime < endOfDay) {
         slots.push({ time: formatTime(currentTime) })
-        currentTime += 30
+        currentTime += interval
       }
     }
 
@@ -460,7 +460,7 @@ export default function CalendarDashboard() {
     const slotStart = parseTime(slot)
     const slotEnd = slotStart + duration
 
-    if (slotEnd > parseTime('18:30')) return false
+    if (slotEnd > parseTime(settings?.businessEndTime || '18:30')) return false
 
     // Convert appointments to a format with time and duration
     const formattedAppointments = existingAppointments.map((appointment) => {
@@ -473,7 +473,7 @@ export default function CalendarDashboard() {
         .padStart(2, '0')}`
 
       // Get duration from service ID
-      const duration = getServiceDuration(appointment.service)
+      const duration = getServiceDuration(appointment.service ?? null)
 
       return {
         time,
@@ -501,37 +501,15 @@ export default function CalendarDashboard() {
     setAppointmentTimeSlots(availableSlots)
   }
 
-  // Update time slots when date changes
+  // Update time slots when date or settings change
   useEffect(() => {
-    if (appointmentDate) {
+    if (appointmentDate && !settingsLoading) {
       getAvailableTimeSlots(appointmentDate)
     }
-  }, [appointmentDate, appointments])
+  }, [appointmentDate, appointments, settings, settingsLoading])
 
   // Time slots for appointment selection
-  const [appointmentTimeSlots, setAppointmentTimeSlots] = useState([
-    { time: '8:30' },
-    { time: '9:00' },
-    { time: '9:30' },
-    { time: '10:00' },
-    { time: '10:30' },
-    { time: '11:00' },
-    { time: '11:30' },
-    { time: '12:00' },
-    { time: '12:30' },
-    { time: '13:00' },
-    { time: '13:30' },
-    { time: '14:00' },
-    { time: '14:30' },
-    { time: '15:00' },
-    { time: '15:30' },
-    { time: '16:00' },
-    { time: '16:30' },
-    { time: '17:00' },
-    { time: '17:30' },
-    { time: '18:00' },
-    { time: '18:30' },
-  ])
+  const [appointmentTimeSlots, setAppointmentTimeSlots] = useState<any[]>([])
 
   const navigateToPrevious = () => {
     if (view === 'day') {
@@ -606,7 +584,7 @@ export default function CalendarDashboard() {
         .select('*')
         .eq('appointment_time', adjustedTime.toISOString())
 
-    if (selectedAppintment.length > 0) {
+    if (selectedAppintment && selectedAppintment.length > 0) {
       setAuthError('Termin već postoji!')
       setShowModal(false)
       fetchAppointments()
@@ -806,26 +784,6 @@ export default function CalendarDashboard() {
       setShowAppointmentModal(false)
       setSelectedAppointment(null)
     }
-  }
-
-  // Get service name from service ID
-  const getServiceName = (serviceId: string | null) => {
-    if (serviceId === null || serviceId === undefined) return 'Unknown service'
-
-    const id =
-      typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-
-    const serviceNames: Record<number, string> = {
-      0: 'Brijanje',
-      1: 'Šišanje do kože',
-      2: 'Šišanje',
-      3: 'Fade',
-      4: 'Brijanje glave',
-      5: 'Šišanje + Brijanje',
-      6: 'Fade + Brijanje',
-    }
-
-    return serviceNames[id] || 'Unknown service'
   }
 
   // Handle appointment click
