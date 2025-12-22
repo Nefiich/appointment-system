@@ -7,10 +7,10 @@ import addHours from '@/utils/addHours'
 const supabase = createBrowserClient()
 
 export const useAppointments = () => {
-  const [appointments, setAppointments] = useState([])
-  const [userAppointments, setUserAppointments] = useState([])
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [userAppointments, setUserAppointments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Fetch appointments from Supabase
   const fetchAppointments = async () => {
@@ -52,7 +52,7 @@ export const useAppointments = () => {
   }
 
   // Fetch user appointments
-  const fetchUserAppointments = async (userId) => {
+  const fetchUserAppointments = async (userId: string) => {
     const offset = -new Date().getTimezoneOffset() / 60
     try {
       const { data, error } = await supabase
@@ -92,7 +92,7 @@ export const useAppointments = () => {
   }
 
   // Cancel appointment
-  const cancelAppointment = async (appointmentId) => {
+  const cancelAppointment = async (appointmentId: number) => {
     try {
       // First, get the appointment details before deleting
       const { data: appointmentData, error: fetchError } = await supabase
@@ -160,8 +160,8 @@ export const useAppointments = () => {
   }
 
   // Get appointments for a specific date
-  const getAppointmentsForDate = (date) => {
-    return appointments.filter((appointment) =>
+  const getAppointmentsForDate = (date: Date) => {
+    return appointments.filter((appointment: any) =>
       isSameDay(appointment.appointment_time, date),
     )
   }

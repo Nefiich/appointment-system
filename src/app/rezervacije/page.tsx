@@ -164,8 +164,13 @@ export default function UserDashboard() {
       return
     }
 
+    if (!selectedTime || selectedService === null) {
+      setError('Molimo izaberite uslugu i vrijeme')
+      return
+    }
+
     // Check if selected date is a vacation day
-    if (blockedDates.some((blocked) => isSameDay(blocked, date))) {
+    if (blockedDates.some((blocked: Date) => isSameDay(blocked, date))) {
       setError('Izabrani datum je godišnji odmor!')
       return
     }
@@ -174,11 +179,11 @@ export default function UserDashboard() {
   }
 
   // Handle form field changes
-  const handleNameChange = (e) => {
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value)
   }
 
-  const handlePhoneChange = (e) => {
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhone(e.target.value)
   }
 
@@ -188,7 +193,7 @@ export default function UserDashboard() {
     try {
       if (!selectedTime) return;
       // Parse the selected time
-      const [hours, minutes] = selectedTime.split(':').map(Number)
+      const [hours, minutes] = (selectedTime as any).time.split(':').map(Number)
 
       // Create appointment time
       const appointmentTime = new Date(date)

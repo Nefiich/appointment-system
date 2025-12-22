@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { isAfter, isBefore, addDays, getDay, isSameDay } from 'date-fns';
 
 export const useBookingDates = (
-    userAppointments,
-    blockedDates = [],
+    userAppointments: any[],
+    blockedDates: Date[] = [],
     bookingWindowDays = 7,
     maxAppointments = 3,
     allowSundayBookings = false
@@ -24,7 +24,7 @@ export const useBookingDates = (
         today.getMonth() === 2 ? new Date(today.getFullYear(), 3) : today;
 
     // Helper function to check if a date is blocked
-    const isDateBlocked = (dateToCheck) => {
+    const isDateBlocked = (dateToCheck: Date) => {
         return (
             (!allowSundayBookings && getDay(dateToCheck) === 0) || // Sunday (only if not allowed)
             isBefore(dateToCheck, startDate) ||
@@ -55,7 +55,7 @@ export const useBookingDates = (
     const [date, setDate] = useState(getFirstAvailableDate());
 
     // Custom date filter function to disable Sundays and dates outside the booking window
-    const disabledDays = (date) => {
+    const disabledDays = (date: Date) => {
         return isDateBlocked(date);
     };
 

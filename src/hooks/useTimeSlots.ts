@@ -21,7 +21,7 @@ export const useTimeSlots = (
     timeSlotInterval = 30
 ) => {
     const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [selectedTime, setSelectedTime] = useState<TimeSlot | null>(null);
 
     // Helper functions for time slot calculation
     const parseTime = (timeStr: string) => {
