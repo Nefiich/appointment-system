@@ -363,6 +363,7 @@ export default function CalendarDashboard() {
       4: 'purple', // Brijanje glave - 15min
       5: 'orange', // Šišanje + Brijanje - 30min
       6: 'teal', // Fade + Brijanje - 30min
+      7: 'teal', // Oblikovanje brade - 15min
     }
 
     return serviceColors[serviceId] || 'gray'
