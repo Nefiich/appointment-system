@@ -390,13 +390,12 @@ const UserLoginSteps = () => {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  OVAJ KOD JE ZA UPOTREBU U BUDUĆNOSTI, ZAPAMTITE GA
+                  OVU LOZINKU ĆETE KORISTITI ZA SLJEDEĆE PRIJAVE — ZAPAMTITE JE
                 </AlertDescription>
               </Alert>
               <div className="space-y-2">
                 <Label>
-                  Molimo vas kreirajte kod koji cete koristiti u budućnosti za
-                  prijave!
+                  Molimo vas kreirajte lozinku koju ćete koristiti za sljedeće prijave.
                 </Label>
               </div>
               <div className="flex justify-center space-x-2">
@@ -422,7 +421,7 @@ const UserLoginSteps = () => {
           {step === 4 && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Unesite vaš kod koji ste prethodno sačuvali!</Label>
+                <Label>Unesite svoju lozinku</Label>
               </div>
               <div className="flex justify-center space-x-2">
                 {otp.map((digit, index) => (
