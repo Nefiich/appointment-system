@@ -25,6 +25,7 @@ import { toast } from '@/hooks/use-toast'
 import { dayMap, getServiceDuration, getServiceName } from '@/lib/appointment-utils'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
+import { findOverlappingAppointments } from '@/lib/appointment-conflicts'
 
 // Initialize Supabase client
 const supabase = createBrowserClient()
@@ -112,6 +113,7 @@ export default function CalendarDashboard() {
     new Date(),
   )
   const [selectedTime, setSelectedTime] = useState(null)
+  const [customTime, setCustomTime] = useState<string>('')
   const [selectedService, setSelectedService] = useState<string | number | null>(null)
 
   // Check authentication status on component mount and redirect if not authenticated
@@ -555,7 +557,7 @@ export default function CalendarDashboard() {
 
   // 1. Update the handleAddAppointment function
   const handleAddAppointment = async () => {
-    if (!appointmentDate || !selectedTime || selectedService === null) {
+    if (!appointmentDate || !customTime || selectedService === null) {
       return
     }
 
@@ -566,8 +568,13 @@ export default function CalendarDashboard() {
       return
     }
 
-    // Parse the selected time
-    const [hours, minutes] = (selectedTime as any).time.split(':').map(Number)
+    // Validate the free-form time string
+    if (!customTime || !/^\d{2}:\d{2}$/.test(customTime)) {
+      setAuthError('Unesite validno vrijeme u HH:MM formatu.')
+      return
+    }
+
+    const [hours, minutes] = customTime.split(':').map(Number)
 
     // Create appointment time
     const appointmentTime = new Date(appointmentDate)
@@ -578,21 +585,50 @@ export default function CalendarDashboard() {
     const adjustedTime = new Date(appointmentTime)
     adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
 
-    const { data: selectedAppintment, error: selectedAppintmentError } =
-      await supabase
-        .from('appointments')
-        .select('*')
-        .eq('appointment_time', adjustedTime.toISOString())
+    // Compute duration for the chosen service
+    const newDuration = getServiceDuration(selectedService)
 
-    if (selectedAppintment && selectedAppintment.length > 0) {
-      setAuthError('Termin već postoji!')
-      setShowModal(false)
-      fetchAppointments()
+    // Fetch same-day appointments to check for overlap
+    // Bound the same-day query in the same "local-wall-clock-as-UTC" coordinate space
+    // the rest of this codebase uses (see localToUTC in src/lib/appointment-utils.ts).
+    const dayStartLocal = new Date(appointmentDate)
+    dayStartLocal.setHours(0, 0, 0, 0)
+    const dayStart = new Date(dayStartLocal)
+    dayStart.setMinutes(dayStart.getMinutes() - dayStartLocal.getTimezoneOffset())
 
-      const date = new Date()
-      getAvailableTimeSlots(date)
+    const dayEndLocal = new Date(appointmentDate)
+    dayEndLocal.setHours(23, 59, 59, 999)
+    const dayEnd = new Date(dayEndLocal)
+    dayEnd.setMinutes(dayEnd.getMinutes() - dayEndLocal.getTimezoneOffset())
+
+    const { data: sameDay, error: sameDayError } = await supabase
+      .from('appointments')
+      .select('id, appointment_time, service')
+      .gte('appointment_time', dayStart.toISOString())
+      .lte('appointment_time', dayEnd.toISOString())
+
+    if (sameDayError) {
+      setAuthError(`Greška pri provjeri preklapanja: ${sameDayError.message}`)
       return
     }
+
+    const overlapping = findOverlappingAppointments(
+      (sameDay || []).map((a) => ({
+        id: a.id,
+        appointment_time: a.appointment_time,
+        duration_minutes: getServiceDuration(a.service),
+      })),
+      adjustedTime.toISOString(),
+      newDuration,
+    )
+
+    if (overlapping.length > 0) {
+      const confirmed = window.confirm(
+        'Termin se preklapa s postojećim. Svejedno dodati?',
+      )
+      if (!confirmed) return
+    }
+
     try {
       // Insert the new appointment into Supabase
       const { data, error } = await supabase
@@ -605,6 +641,7 @@ export default function CalendarDashboard() {
             appointment_time: adjustedTime.toISOString(),
             // Add user_id to link appointment to the current user
             user_id: (await supabase.auth.getUser()).data.user?.id,
+            created_by_admin: true,
           },
         ])
         .select()
@@ -641,6 +678,7 @@ export default function CalendarDashboard() {
       setShowModal(false)
       setAppointmentDate(new Date())
       setSelectedTime(null)
+      setCustomTime('')
       setSelectedService(null)
       setName('')
       setPhone('')
@@ -1024,6 +1062,7 @@ export default function CalendarDashboard() {
                   onSelect={(date) => {
                     setAppointmentDate(date)
                     setSelectedTime(null)
+                    setCustomTime('')
                   }}
                   className="w-full rounded-md border"
                   disabled={(date) => {
@@ -1061,46 +1100,19 @@ export default function CalendarDashboard() {
 
             <div className="mb-4">
               <h3 className="mb-2 font-medium">5. Izaberite vrijeme:</h3>
-              <ScrollablePills
-                items={appointmentTimeSlots.filter((slot) => {
-                  // Only show slots that are available for the selected service duration
-                  if (selectedService === null) return true
-
-                  const serviceDuration = getServiceDuration(selectedService)
-                  const appointmentsForDate = appointments.filter(
-                    (appointment) =>
-                      appointmentDate &&
-                      isSameDay(appointment.startTime, appointmentDate),
-                  )
-
-                  return isSlotAvailable(
-                    slot.time,
-                    serviceDuration,
-                    appointmentsForDate,
-                  )
-                })}
-                onChange={(item) => setSelectedTime(item as any)}
-              />
-              {selectedService !== null &&
-                appointmentTimeSlots.length > 0 &&
-                appointmentTimeSlots.filter((slot) => {
-                  const serviceDuration = getServiceDuration(selectedService)
-                  const appointmentsForDate = appointments.filter(
-                    (appointment) =>
-                      appointmentDate &&
-                      isSameDay(appointment.startTime, appointmentDate),
-                  )
-                  return isSlotAvailable(
-                    slot.time,
-                    serviceDuration,
-                    appointmentsForDate,
-                  )
-                }).length === 0 && (
-                  <p className="mt-2 text-sm text-red-500">
-                    Nema dostupnih termina za ovu uslugu na odabrani datum.
-                    Molimo odaberite drugi datum.
-                  </p>
-                )}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Vrijeme</label>
+                <input
+                  type="time"
+                  step={600}
+                  value={customTime}
+                  onChange={(e) => setCustomTime(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Možete unijeti bilo koje vrijeme (uključujući van radnog vremena ili u 10-minutnim intervalima).
+                </p>
+              </div>
             </div>
 
             <div className="mt-4 flex justify-end gap-2 border-t pt-2">
@@ -1110,7 +1122,7 @@ export default function CalendarDashboard() {
               <Button
                 onClick={handleAddAppointment}
                 disabled={
-                  !appointmentDate || !selectedTime || selectedService === null
+                  !appointmentDate || !customTime || selectedService === null
                 }
               >
                 Dodaj termin
