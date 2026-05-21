@@ -91,22 +91,35 @@ export default function CalendarDashboard() {
   // Generate the days of the week starting from today
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentDate, i))
 
-  // Generate time slots based on settings
+  // Generate time slots based on settings, expanded to cover any
+  // admin-placed appointments outside business hours in the visible week.
   const timeSlots = React.useMemo(() => {
-    const start = settings?.businessStartTime
+    const businessStart = settings?.businessStartTime
       ? parseInt(settings.businessStartTime.split(':')[0])
       : 8
-    const end = settings?.businessEndTime
+    const businessEnd = settings?.businessEndTime
       ? parseInt(settings.businessEndTime.split(':')[0])
       : 18
 
-    // Ensure we cover the full range of hours
+    const weekStart = currentDate
+    const weekEnd = addDays(currentDate, 7)
+
+    let minHour = businessStart
+    let maxHour = businessEnd
+
+    for (const a of appointments) {
+      if (a.startTime < weekStart || a.startTime >= weekEnd) continue
+      const h = a.startTime.getHours()
+      if (h < minHour) minHour = h
+      if (h > maxHour) maxHour = h
+    }
+
     const slots = []
-    for (let i = start; i <= end; i++) {
+    for (let i = minHour; i <= maxHour; i++) {
       slots.push(i)
     }
     return slots
-  }, [settings?.businessStartTime, settings?.businessEndTime])
+  }, [settings?.businessStartTime, settings?.businessEndTime, appointments, currentDate])
 
   const [showModal, setShowModal] = useState(false)
   const [appointmentDate, setAppointmentDate] = useState<Date | undefined>(
