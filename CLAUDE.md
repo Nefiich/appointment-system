@@ -184,6 +184,9 @@ NEXT_PUBLIC_TWILIO_ACCOUNT_SID=
 NEXT_PUBLIC_TWILIO_AUTH_TOKEN=
 NEXT_PUBLIC_TWILIO_PHONE_NUMBER=
 SUPABASE_SERVICE_ROLE_KEY=        # For admin operations
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=      # Web Push public key (run: npx web-push generate-vapid-keys)
+VAPID_PRIVATE_KEY=                 # Web Push private key (also set as Supabase Edge Function secret)
+VAPID_SUBJECT=mailto:emin.nefic@gmail.com
 ```
 
 ## Language
