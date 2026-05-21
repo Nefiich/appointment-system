@@ -129,6 +129,7 @@ export const SERVICE_DURATIONS = {
   4: 15, // Brijanje glave
   5: 30, // Šišanje + Brijanje
   6: 30, // Fade + Brijanje
+  7: 15, // Oblikovanje brade
 };
 
 /**
@@ -142,6 +143,7 @@ export const SERVICE_NAMES = {
   4: 'Brijanje glave',
   5: 'Šišanje + Brijanje',
   6: 'Fade + Brijanje',
+  7: 'Oblikovanje brade',
 };
 
 /**
