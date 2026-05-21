@@ -18,6 +18,7 @@ import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
 
 // Import custom components
 import { UserAppointments } from '@/components/UserAppointments'
+import { PushPermissionPrompt } from '@/components/PushPermissionPrompt'
 import { CancelConfirmation } from '@/components/CancelConfirmation'
 import { DateSelection } from '@/components/DateSelection'
 import { ServiceSelection } from '@/components/ServiceSelection'
@@ -316,6 +317,8 @@ export default function UserDashboard() {
       )}
 
       {/* User appointments */}
+      <PushPermissionPrompt hasUpcomingAppointment={userAppointments.length > 0} />
+
       <UserAppointments
         userAppointments={userAppointments}
         setAppointmentToCancel={setAppointmentToCancel}
