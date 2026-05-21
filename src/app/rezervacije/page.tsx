@@ -4,8 +4,9 @@ import { SideBar } from '@/components/SideBar'
 import { Button } from '@/components/ui/button'
 import { Confirmation } from '@/components/Confirmation'
 import { createBrowserClient } from '@/lib/supabase'
-import { format, isSameDay } from 'date-fns'
+import { isSameDay } from 'date-fns'
 import { getServiceDuration, getServiceName } from '@/lib/appointment-utils'
+import { filterActiveAnnouncements } from './announcements-utils'
 
 // Import custom hooks
 import { useAppointments } from '@/hooks/useAppointments'
@@ -57,9 +58,6 @@ export default function UserDashboard() {
   // Fetch announcements from Supabase
   const fetchAnnouncements = async () => {
     try {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
       const { data, error } = await supabase.from('announcements').select('*')
 
       if (error) {
@@ -67,9 +65,9 @@ export default function UserDashboard() {
         return
       }
 
-      setAnnouncements(data || [])
-    } catch (error) {
-      console.error('Error in fetchAnnouncements:', error)
+      setAnnouncements(filterActiveAnnouncements(data || [], new Date()))
+    } catch (err) {
+      console.error('Error in fetchAnnouncements:', err)
     }
   }
 
@@ -310,12 +308,6 @@ export default function UserDashboard() {
           <div className="space-y-3">
             {announcements.map((announcement) => (
               <div key={announcement.id} className="text-sm">
-                <div className="mb-1 flex items-center gap-2 text-amber-700">
-                  <span className="font-medium">
-                    {format(new Date(announcement.start_date), 'dd.MM.yyyy')} -{' '}
-                    {format(new Date(announcement.end_date), 'dd.MM.yyyy')}
-                  </span>
-                </div>
                 <p className="text-gray-700">{announcement.description}</p>
               </div>
             ))}
