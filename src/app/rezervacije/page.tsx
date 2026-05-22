@@ -19,6 +19,7 @@ import { useAppointmentSettings } from '@/hooks/useAppointmentSettings'
 // Import custom components
 import { UserAppointments } from '@/components/UserAppointments'
 import { PushPermissionPrompt } from '@/components/PushPermissionPrompt'
+import { InstallPrompt } from '@/components/InstallPrompt'
 import { CancelConfirmation } from '@/components/CancelConfirmation'
 import { DateSelection } from '@/components/DateSelection'
 import { ServiceSelection } from '@/components/ServiceSelection'
@@ -316,7 +317,8 @@ export default function UserDashboard() {
         </div>
       )}
 
-      {/* User appointments */}
+      {/* Install + push prompts */}
+      <InstallPrompt />
       <PushPermissionPrompt hasUpcomingAppointment={userAppointments.length > 0} />
 
       <UserAppointments

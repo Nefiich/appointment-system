@@ -18,6 +18,16 @@ export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: 'Sinbad Barbershop | Rezervacije',
   description: 'Rezervacije za Sinbad Barbershop',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Sinbad',
+    statusBarStyle: 'black-translucent' as const,
+  },
+}
+
+export const viewport = {
+  themeColor: '#0a0a0a',
 }
 
 export default function RootLayout({
