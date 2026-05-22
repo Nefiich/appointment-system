@@ -16,6 +16,7 @@ import { createBrowserClient } from '@/lib/supabase'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
 import SelectableGrid from '@/components/SelectableGrid'
@@ -125,8 +126,10 @@ export default function CalendarDashboard() {
   const [appointmentDate, setAppointmentDate] = useState<Date | undefined>(
     new Date(),
   )
-  const [selectedTime, setSelectedTime] = useState(null)
+  const [selectedTime, setSelectedTime] = useState<{ time: string } | null>(null)
   const [customTime, setCustomTime] = useState<string>('')
+  // 'slots' = pick from generated 30-min business-hour slots; 'custom' = free HH:MM input
+  const [timeMode, setTimeMode] = useState<'slots' | 'custom'>('slots')
   const [selectedService, setSelectedService] = useState<string | number | null>(null)
 
   // Check authentication status on component mount and redirect if not authenticated
@@ -571,7 +574,11 @@ export default function CalendarDashboard() {
 
   // 1. Update the handleAddAppointment function
   const handleAddAppointment = async () => {
-    if (!appointmentDate || !customTime || selectedService === null) {
+    // Resolve the time string depending on which picker mode is active
+    const timeString =
+      timeMode === 'slots' ? selectedTime?.time ?? '' : customTime
+
+    if (!appointmentDate || !timeString || selectedService === null) {
       return
     }
 
@@ -582,13 +589,13 @@ export default function CalendarDashboard() {
       return
     }
 
-    // Validate the free-form time string
-    if (!customTime || !/^\d{2}:\d{2}$/.test(customTime)) {
+    // Validate the time string (both modes produce HH:MM)
+    if (!/^\d{2}:\d{2}$/.test(timeString)) {
       setAuthError('Unesite validno vrijeme u HH:MM formatu.')
       return
     }
 
-    const [hours, minutes] = customTime.split(':').map(Number)
+    const [hours, minutes] = timeString.split(':').map(Number)
 
     // Create appointment time
     const appointmentTime = new Date(appointmentDate)
@@ -693,6 +700,7 @@ export default function CalendarDashboard() {
       setAppointmentDate(new Date())
       setSelectedTime(null)
       setCustomTime('')
+      setTimeMode('slots')
       setSelectedService(null)
       setName('')
       setPhone('')
@@ -1113,20 +1121,65 @@ export default function CalendarDashboard() {
             </div>
 
             <div className="mb-4">
-              <h3 className="mb-2 font-medium">5. Izaberite vrijeme:</h3>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">Vrijeme</label>
-                <input
-                  type="time"
-                  step={600}
-                  value={customTime}
-                  onChange={(e) => setCustomTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Možete unijeti bilo koje vrijeme (uključujući van radnog vremena ili u 10-minutnim intervalima).
-                </p>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="font-medium">5. Izaberite vrijeme:</h3>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <span className={timeMode === 'slots' ? 'font-medium' : 'text-muted-foreground'}>
+                    Slotovi
+                  </span>
+                  <Switch
+                    checked={timeMode === 'custom'}
+                    onCheckedChange={(v) => setTimeMode(v ? 'custom' : 'slots')}
+                  />
+                  <span className={timeMode === 'custom' ? 'font-medium' : 'text-muted-foreground'}>
+                    Slobodan unos
+                  </span>
+                </label>
               </div>
+
+              {timeMode === 'slots' ? (
+                <div>
+                  {appointmentTimeSlots.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {appointmentTimeSlots.map((slot: { time: string }) => {
+                        const isSelected = selectedTime?.time === slot.time
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            onClick={() => setSelectedTime(slot)}
+                            className={cn(
+                              'rounded-md border px-3 py-2 text-sm transition-colors',
+                              isSelected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-gray-300 bg-white hover:border-primary hover:bg-primary/5',
+                            )}
+                          >
+                            {slot.time}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Nema dostupnih slotova za ovaj dan. Prebacite na slobodan unos da dodate termin van radnog vremena.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="time"
+                    step={600}
+                    value={customTime}
+                    onChange={(e) => setCustomTime(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Možete unijeti bilo koje vrijeme (uključujući van radnog vremena ili u 10-minutnim intervalima).
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 flex justify-end gap-2 border-t pt-2">
@@ -1136,7 +1189,9 @@ export default function CalendarDashboard() {
               <Button
                 onClick={handleAddAppointment}
                 disabled={
-                  !appointmentDate || !customTime || selectedService === null
+                  !appointmentDate ||
+                  selectedService === null ||
+                  (timeMode === 'slots' ? !selectedTime : !customTime)
                 }
               >
                 Dodaj termin
