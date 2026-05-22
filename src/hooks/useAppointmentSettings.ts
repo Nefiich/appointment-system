@@ -98,10 +98,12 @@ export const useAppointmentSettings = () => {
 
   const fetchServices = async () => {
     try {
+      // Fetch ALL services (active + inactive). Consumers that should only
+      // show active ones (customer-facing) filter client-side; the admin path
+      // can opt in to seeing inactive services with a visual indicator.
       const { data, error: fetchError } = await supabase
         .from('services')
         .select('*')
-        .eq('is_active', true)
         .order('display_order', { ascending: true });
 
       if (fetchError) {
