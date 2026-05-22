@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Share, X } from 'lucide-react';
+import { Share, X, Download } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -31,6 +31,7 @@ function detectPlatform(): Platform {
 
 export function InstallPrompt() {
   const [show, setShow] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [platform, setPlatform] = useState<Platform>('other');
   const [deferredEvent, setDeferredEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
@@ -77,12 +78,28 @@ export function InstallPrompt() {
     setShow(false);
   };
 
+  // Collapsed state: small unobtrusive pill that expands on click.
+  if (!expanded) {
+    return (
+      <div className="mx-5 mt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
+        >
+          <Download className="h-3 w-3" />
+          Instaliraj aplikaciju
+        </button>
+      </div>
+    );
+  }
+
   if (platform === 'ios') {
     return (
       <div className="relative mx-5 mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-4 pr-10">
         <button
           aria-label="Zatvori"
-          onClick={handleDismiss}
+          onClick={() => setExpanded(false)}
           className="absolute right-2 top-2 rounded p-1 text-emerald-900 hover:bg-emerald-100"
         >
           <X className="h-4 w-4" />
