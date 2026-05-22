@@ -59,10 +59,21 @@ export function PushPermissionPrompt({ hasUpcomingAppointment }: Props) {
         Želite li primati podsjetnike za termin? Poslat ćemo vam notifikaciju 1 dan i 1 sat prije termina.
       </p>
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleEnable} disabled={submitting}>
+        <Button
+          size="sm"
+          onClick={handleEnable}
+          disabled={submitting}
+          className="bg-indigo-600 text-white hover:bg-indigo-700"
+        >
           {submitting ? 'Učitavanje...' : 'Da, omogući'}
         </Button>
-        <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={submitting}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleDismiss}
+          disabled={submitting}
+          className="text-indigo-900 hover:bg-indigo-100 hover:text-indigo-900"
+        >
           Ne sada
         </Button>
       </div>
