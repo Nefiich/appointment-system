@@ -1144,19 +1144,15 @@ export default function CalendarDashboard() {
                       {appointmentTimeSlots.map((slot: { time: string }) => {
                         const isSelected = selectedTime?.time === slot.time
                         return (
-                          <button
+                          <Button
                             key={slot.time}
                             type="button"
+                            size="sm"
+                            variant={isSelected ? 'default' : 'outline'}
                             onClick={() => setSelectedTime(slot)}
-                            className={cn(
-                              'rounded-md border px-3 py-2 text-sm transition-colors',
-                              isSelected
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : 'border-gray-300 bg-white hover:border-primary hover:bg-primary/5',
-                            )}
                           >
                             {slot.time}
-                          </button>
+                          </Button>
                         )
                       })}
                     </div>
