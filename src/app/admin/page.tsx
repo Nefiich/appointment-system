@@ -20,6 +20,9 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
 import SelectableGrid from '@/components/SelectableGrid'
+import CustomerSearchInput, {
+  type CustomerUser,
+} from '@/components/admin/CustomerSearchInput'
 import { ScrollablePills } from '@/components/ScrollablePills'
 import { start } from 'repl'
 import { toast } from '@/hooks/use-toast'
@@ -78,6 +81,10 @@ export default function CalendarDashboard() {
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  // Registered customers for the search field, plus the linked customer's auth
+  // id (null = walk-in / free-typed name).
+  const [customers, setCustomers] = useState<CustomerUser[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [selectedAppointment, setSelectedAppointment] =
@@ -517,15 +524,52 @@ export default function CalendarDashboard() {
       appointmentDate,
       appointmentsForDate,
     )
-    setAppointmentTimeSlots(availableSlots)
+
+    // If a service is selected, only keep slots where the whole service fits
+    // before the next appointment / business close (mirrors the customer flow).
+    const finalSlots =
+      selectedService !== null
+        ? availableSlots.filter((slot) =>
+            isSlotAvailable(
+              slot.time,
+              getServiceDuration(selectedService),
+              appointmentsForDate,
+            ),
+          )
+        : availableSlots
+
+    setAppointmentTimeSlots(finalSlots)
+
+    // Drop a previously-picked slot that is no longer offered, so an invalid
+    // time can't be submitted after the service/date/appointments change.
+    setSelectedTime((current) =>
+      current && finalSlots.some((slot) => slot.time === current.time)
+        ? current
+        : null,
+    )
   }
 
-  // Update time slots when date or settings change
+  // Update time slots when date, service, settings, or appointments change
   useEffect(() => {
     if (appointmentDate && !settingsLoading) {
       getAvailableTimeSlots(appointmentDate)
     }
-  }, [appointmentDate, appointments, settings, settingsLoading])
+  }, [appointmentDate, appointments, settings, settingsLoading, selectedService])
+
+  // Load registered customers when the add-appointment modal opens, so the
+  // name field can search them and link appointments to their account.
+  useEffect(() => {
+    if (!showModal) return
+    const loadCustomers = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, user_id, name, phone_number')
+      if (!error && data) {
+        setCustomers(data as CustomerUser[])
+      }
+    }
+    loadCustomers()
+  }, [showModal])
 
   // Time slots for appointment selection
   const [appointmentTimeSlots, setAppointmentTimeSlots] = useState<any[]>([])
@@ -609,45 +653,51 @@ export default function CalendarDashboard() {
     // Compute duration for the chosen service
     const newDuration = getServiceDuration(selectedService)
 
-    // Fetch same-day appointments to check for overlap
-    // Bound the same-day query in the same "local-wall-clock-as-UTC" coordinate space
-    // the rest of this codebase uses (see localToUTC in src/lib/appointment-utils.ts).
-    const dayStartLocal = new Date(appointmentDate)
-    dayStartLocal.setHours(0, 0, 0, 0)
-    const dayStart = new Date(dayStartLocal)
-    dayStart.setMinutes(dayStart.getMinutes() - dayStartLocal.getTimezoneOffset())
-
-    const dayEndLocal = new Date(appointmentDate)
-    dayEndLocal.setHours(23, 59, 59, 999)
-    const dayEnd = new Date(dayEndLocal)
-    dayEnd.setMinutes(dayEnd.getMinutes() - dayEndLocal.getTimezoneOffset())
-
-    const { data: sameDay, error: sameDayError } = await supabase
-      .from('appointments')
-      .select('id, appointment_time, service')
-      .gte('appointment_time', dayStart.toISOString())
-      .lte('appointment_time', dayEnd.toISOString())
-
-    if (sameDayError) {
-      setAuthError(`Greška pri provjeri preklapanja: ${sameDayError.message}`)
-      return
-    }
-
-    const overlapping = findOverlappingAppointments(
-      (sameDay || []).map((a) => ({
-        id: a.id,
-        appointment_time: a.appointment_time,
-        duration_minutes: getServiceDuration(a.service),
-      })),
-      adjustedTime.toISOString(),
-      newDuration,
-    )
-
-    if (overlapping.length > 0) {
-      const confirmed = window.confirm(
-        'Termin se preklapa s postojećim. Svejedno dodati?',
+    // Manual ("Slobodan unos") mode intentionally allows overlap with no checks.
+    // Only slots mode verifies, where the offered slots are already pre-filtered.
+    if (timeMode === 'slots') {
+      // Fetch same-day appointments to check for overlap
+      // Bound the same-day query in the same "local-wall-clock-as-UTC" coordinate space
+      // the rest of this codebase uses (see localToUTC in src/lib/appointment-utils.ts).
+      const dayStartLocal = new Date(appointmentDate)
+      dayStartLocal.setHours(0, 0, 0, 0)
+      const dayStart = new Date(dayStartLocal)
+      dayStart.setMinutes(
+        dayStart.getMinutes() - dayStartLocal.getTimezoneOffset(),
       )
-      if (!confirmed) return
+
+      const dayEndLocal = new Date(appointmentDate)
+      dayEndLocal.setHours(23, 59, 59, 999)
+      const dayEnd = new Date(dayEndLocal)
+      dayEnd.setMinutes(dayEnd.getMinutes() - dayEndLocal.getTimezoneOffset())
+
+      const { data: sameDay, error: sameDayError } = await supabase
+        .from('appointments')
+        .select('id, appointment_time, service')
+        .gte('appointment_time', dayStart.toISOString())
+        .lte('appointment_time', dayEnd.toISOString())
+
+      if (sameDayError) {
+        setAuthError(`Greška pri provjeri preklapanja: ${sameDayError.message}`)
+        return
+      }
+
+      const overlapping = findOverlappingAppointments(
+        (sameDay || []).map((a) => ({
+          id: a.id,
+          appointment_time: a.appointment_time,
+          duration_minutes: getServiceDuration(a.service),
+        })),
+        adjustedTime.toISOString(),
+        newDuration,
+      )
+
+      if (overlapping.length > 0) {
+        const confirmed = window.confirm(
+          'Termin se preklapa s postojećim. Svejedno dodati?',
+        )
+        if (!confirmed) return
+      }
     }
 
     try {
@@ -660,8 +710,10 @@ export default function CalendarDashboard() {
             phone_number: phone,
             service: selectedService,
             appointment_time: adjustedTime.toISOString(),
-            // Add user_id to link appointment to the current user
-            user_id: (await supabase.auth.getUser()).data.user?.id,
+            // Link to the searched customer so it shows in their profile;
+            // fall back to the admin's id for a walk-in / free-typed name.
+            user_id:
+              selectedUserId ?? (await supabase.auth.getUser()).data.user?.id,
             created_by_admin: true,
           },
         ])
@@ -704,6 +756,7 @@ export default function CalendarDashboard() {
       setSelectedService(null)
       setName('')
       setPhone('')
+      setSelectedUserId(null)
     } catch (error) {
       console.error('Error:', error)
       setAuthError('Došlo je do neočekivane greške')
@@ -1056,12 +1109,24 @@ export default function CalendarDashboard() {
             <div className="pr-2">
               <div>
                 <h3 className="mb-2 font-medium">1. Ime:</h3>
-                <input
-                  className="mb-6 w-full rounded-md border bg-inherit px-4 py-2"
-                  name="name"
-                  placeholder="Sinbad Mehic"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                <CustomerSearchInput
+                  users={customers}
+                  name={name}
+                  onNameChange={(value) => {
+                    // Editing the name detaches any previously linked customer.
+                    setName(value)
+                    setSelectedUserId(null)
+                  }}
+                  onSelectUser={(user) => {
+                    if (user) {
+                      setName(user.name)
+                      setPhone(user.phone_number)
+                      setSelectedUserId(user.user_id)
+                    } else {
+                      // Walk-in: keep the typed name, no linked account.
+                      setSelectedUserId(null)
+                    }
+                  }}
                 />
               </div>
 
