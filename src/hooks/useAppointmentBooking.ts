@@ -24,7 +24,17 @@ export const useAppointmentBooking = (
         name,
         phone
     ) => {
+        console.log('[booking] handleBookAppointment called with:', {
+            date,
+            selectedTime,
+            selectedService,
+            selectedServiceType: typeof selectedService,
+            name,
+            phone,
+        });
+
         if (!date || !selectedTime || selectedService === null) {
+            console.warn('[booking] BLOCKED: missing required fields');
             setError('Molimo popunite sva obavezna polja');
             return false;
         }
@@ -50,6 +60,7 @@ export const useAppointmentBooking = (
             }
 
             const userId = session.user.id;
+            console.log('[booking] session OK, userId:', userId);
 
             // Parse the selected time
             const [hours, minutes] = selectedTime.time.split(':').map(Number);
@@ -88,6 +99,11 @@ export const useAppointmentBooking = (
 
             // Duration of the appointment being booked
             const serviceDuration = getServiceDuration(selectedService);
+            console.log('[booking] computed times + duration:', {
+                appointmentTimeLocal: appointmentTime.toString(),
+                adjustedTimeISO: adjustedTime.toISOString(),
+                serviceDuration,
+            });
 
             // Check for overlapping appointments across the whole day, using
             // real interval math (start < otherEnd && end > otherStart) rather
@@ -111,8 +127,16 @@ export const useAppointmentBooking = (
                 .gte('appointment_time', dayStart.toISOString())
                 .lte('appointment_time', dayEnd.toISOString());
 
+            console.log('[booking] same-day query:', {
+                dayStartISO: dayStart.toISOString(),
+                dayEndISO: dayEnd.toISOString(),
+                count: sameDay?.length ?? 0,
+                sameDay,
+                checkError,
+            });
+
             if (checkError) {
-                console.error('Error checking appointment availability:', checkError);
+                console.error('[booking] BLOCKED: same-day availability query failed:', checkError);
                 setError('Neuspjela provjera dostupnosti termina. Molimo pokušajte ponovo.');
                 return false;
             }
@@ -127,27 +151,49 @@ export const useAppointmentBooking = (
                 serviceDuration,
             );
 
+            console.log('[booking] overlap pre-check:', {
+                newStartISO: adjustedTime.toISOString(),
+                newDuration: serviceDuration,
+                existing: (sameDay || []).map((a) => ({
+                    id: a.id,
+                    appointment_time: a.appointment_time,
+                    service: a.service,
+                    duration: getServiceDuration(a.service),
+                })),
+                overlappingCount: overlapping.length,
+                overlapping,
+            });
+
             if (overlapping.length > 0) {
+                console.warn('[booking] BLOCKED by app-side overlap pre-check', overlapping);
                 setError('Ovaj termin više nije dostupan. Molimo odaberite drugo vrijeme.');
                 return false;
             }
 
             // Insert the new appointment into Supabase with the adjusted time
+            const insertPayload = {
+                name: name,
+                phone_number: phone,
+                service: selectedService,
+                appointment_time: adjustedTime.toISOString(),
+                user_id: userId,
+            };
+            console.log('[booking] inserting appointment:', insertPayload);
+
             const { data, error } = await supabase
                 .from('appointments')
-                .insert([
-                    {
-                        name: name,
-                        phone_number: phone,
-                        service: selectedService,
-                        appointment_time: adjustedTime.toISOString(),
-                        user_id: userId,
-                    },
-                ])
+                .insert([insertPayload])
                 .select();
 
             if (error) {
-                console.error('Greška prilikom dodavanja termina:', error);
+                // Log every field individually — Supabase/Postgres error objects
+                // often collapse to "{}" when logged whole.
+                console.error('[booking] INSERT FAILED:', {
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                });
                 // 23P01 = Postgres exclusion_violation: the appointments_no_overlap
                 // constraint rejected this insert because another booking landed in
                 // the same slot between our check and insert (concurrency guard).
@@ -158,6 +204,8 @@ export const useAppointmentBooking = (
                 }
                 return false;
             }
+
+            console.log('[booking] insert OK:', data);
 
             // Update user profile if not already set
             const { error: updateError } = await supabase.from('users').upsert({
