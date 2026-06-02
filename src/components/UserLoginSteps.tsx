@@ -31,6 +31,10 @@ const UserLoginSteps = () => {
   const [password, setPassword] = useState(['', '', '', '', '', ''])
   const inputRefs = useRef([])
   const passwordInputRefs = useRef([])
+  // Synchronous lock against rapid double-clicks. `loading` is async state and
+  // a second click in the same tick would not yet see it as true; the ref
+  // flips immediately. It is held through the post-success redirect window.
+  const isProcessingRef = useRef(false)
 
   const router = useRouter()
 
@@ -46,7 +50,12 @@ const UserLoginSteps = () => {
   }
 
   const handleNext = async () => {
+    if (isProcessingRef.current) return
+    isProcessingRef.current = true
     setLoading(true)
+    // When we kick off a redirect, keep the lock held so the button stays
+    // disabled during the setTimeout window instead of being re-enabled here.
+    let navigating = false
     try {
       if (step === 1) {
         if (!name) {
@@ -174,8 +183,12 @@ const UserLoginSteps = () => {
             // Continue anyway since authentication was successful
           }
 
+          navigating = true
           setTimeout(() => {
             if (userData?.length > 0) {
+              // Staying on the page for the next step — release the lock.
+              isProcessingRef.current = false
+              setLoading(false)
               setStep(3)
             } else {
               router.push('/rezervacije/')
@@ -226,6 +239,7 @@ const UserLoginSteps = () => {
 
         console.log('DATA: ', data, error)
 
+        navigating = true
         setTimeout(() => {
           router.push('/rezervacije/')
         }, 1500)
@@ -234,7 +248,10 @@ const UserLoginSteps = () => {
       console.error('Authentication error:', err)
       setError('Došlo je do neočekivane greške. Please try again.')
     } finally {
-      setLoading(false)
+      if (!navigating) {
+        isProcessingRef.current = false
+        setLoading(false)
+      }
     }
   }
 

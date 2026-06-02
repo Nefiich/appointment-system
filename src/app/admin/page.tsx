@@ -692,11 +692,13 @@ export default function CalendarDashboard() {
         newDuration,
       )
 
+      // Slots mode hard-blocks overlaps. Admins who deliberately want to
+      // double-book use the "Slobodan unos" (custom time) mode instead.
       if (overlapping.length > 0) {
-        const confirmed = window.confirm(
-          'Termin se preklapa s postojećim. Svejedno dodati?',
+        setAuthError(
+          'Termin se preklapa s postojećim. Koristite "Slobodan unos" za namjerno preklapanje.',
         )
-        if (!confirmed) return
+        return
       }
     }
 
@@ -715,13 +717,24 @@ export default function CalendarDashboard() {
             user_id:
               selectedUserId ?? (await supabase.auth.getUser()).data.user?.id,
             created_by_admin: true,
+            // Custom-time mode deliberately bypasses the no-overlap DB
+            // constraint; slots mode stays protected (allow_overlap = false).
+            allow_overlap: timeMode === 'custom',
           },
         ])
         .select()
 
       if (error) {
         console.error('Greška prilikom dodavanja termina:', error)
-        setAuthError(`Greška prilikom dodavanja termina: ${error.message}`)
+        // 23P01 = exclusion_violation from appointments_no_overlap (e.g. a
+        // concurrent booking slipped into this slot after the JS check).
+        if (error.code === '23P01') {
+          setAuthError(
+            'Termin se preklapa s postojećim. Osvježite i pokušajte ponovo.',
+          )
+        } else {
+          setAuthError(`Greška prilikom dodavanja termina: ${error.message}`)
+        }
         return
       }
 

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase'
+import { LoginForm } from '@/components/LoginForm'
 
 export default async function Login({
   searchParams,
@@ -78,38 +79,7 @@ export default async function Login({
         Back
       </Link>
 
-      <form
-        className="flex w-full flex-1 flex-col justify-center gap-2 text-foreground animate-in"
-        action={signIn}
-      >
-        <label className="text-md" htmlFor="email">
-          Email
-        </label>
-        <input
-          className="mb-6 rounded-md border bg-inherit px-4 py-2"
-          name="email"
-          placeholder="you@example.com"
-          required
-        />
-        <label className="text-md" htmlFor="password">
-          Password
-        </label>
-        <input
-          className="mb-6 rounded-md border bg-inherit px-4 py-2"
-          type="password"
-          name="password"
-          placeholder="••••••••"
-          required
-        />
-        <button className="mb-2 rounded-md bg-green-700 px-4 py-2 text-foreground">
-          Sign In
-        </button>
-        {searchParams?.message && (
-          <p className="mt-4 bg-foreground/10 p-4 text-center text-foreground">
-            {searchParams.message}
-          </p>
-        )}
-      </form>
+      <LoginForm signIn={signIn} message={searchParams?.message} />
     </div>
   )
 }

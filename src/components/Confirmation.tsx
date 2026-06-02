@@ -10,6 +10,7 @@ interface ConfirmationProps {
   onConfirm: () => void
   onCancel: () => void
   onBack: () => void
+  isSubmitting?: boolean
 }
 
 export function Confirmation({
@@ -19,6 +20,7 @@ export function Confirmation({
   onConfirm,
   onCancel,
   onBack,
+  isSubmitting = false,
 }: ConfirmationProps) {
   const bosnianWeekDays = [
     'Nedjelja', // 0
@@ -70,13 +72,18 @@ export function Confirmation({
       </div>
 
       <div className="flex gap-4">
-        <Button variant="outline" className="flex-1" onClick={onCancel}>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           <X className="mr-2 h-4 w-4" />
           Otkaži
         </Button>
-        <Button className="flex-1" onClick={onConfirm}>
+        <Button className="flex-1" onClick={onConfirm} disabled={isSubmitting}>
           <Check className="mr-2 h-4 w-4" />
-          Potvrdi
+          {isSubmitting ? 'Rezervisanje...' : 'Potvrdi'}
         </Button>
       </div>
     </div>

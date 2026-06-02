@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Confirmation } from '@/components/Confirmation'
 import { createBrowserClient } from '@/lib/supabase'
 import { isSameDay } from 'date-fns'
-import { getServiceDuration, getServiceName } from '@/lib/appointment-utils'
+import { getServiceName } from '@/lib/appointment-utils'
 import { filterActiveAnnouncements } from './announcements-utils'
 
 // Import custom hooks
@@ -108,8 +108,12 @@ export default function UserDashboard() {
     settings.timeSlotInterval
   )
 
-  const { showConfirmation, setShowConfirmation, handleBookAppointment } =
-    useAppointmentBooking(fetchAppointments, fetchUserAppointments, setError)
+  const {
+    showConfirmation,
+    setShowConfirmation,
+    handleBookAppointment,
+    isBooking,
+  } = useAppointmentBooking(fetchAppointments, fetchUserAppointments, setError)
 
   // Load all appointments on component mount
   useEffect(() => {
@@ -189,47 +193,12 @@ export default function UserDashboard() {
 
   // Handle confirmation
   const handleConfirm = async () => {
-    // First, check if the time slot is still available
     try {
-      if (!selectedTime) return;
-      // Parse the selected time
-      const [hours, minutes] = (selectedTime as any).time.split(':').map(Number)
+      if (!selectedTime) return
 
-      // Create appointment time
-      const appointmentTime = new Date(date)
-      appointmentTime.setHours(hours, minutes, 0, 0)
-
-      // Adjust for timezone before storing
-      const timezoneOffset = appointmentTime.getTimezoneOffset()
-      const adjustedTime = new Date(appointmentTime)
-      adjustedTime.setMinutes(adjustedTime.getMinutes() - timezoneOffset)
-
-      const serviceDuration = getServiceDuration(selectedService)
-      const endTime = new Date(adjustedTime)
-      endTime.setMinutes(endTime.getMinutes() + serviceDuration)
-
-      // Check for any overlapping appointments
-      const { data: existingAppointments, error: checkError } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('appointment_time', adjustedTime.toISOString())
-
-      console.log(
-        'Existing app: ',
-        existingAppointments,
-        adjustedTime.toISOString(),
-      )
-
-      // If we found any appointments that would overlap, the slot is not available
-      if (existingAppointments && existingAppointments.length > 0) {
-        setError(
-          'Ovo vrijeme nije vise dostupno. Molimo odaberite drugo vrijeme.',
-        )
-        setShowConfirmation(false)
-        return false
-      }
-
-      // If we get here, the slot is still available, proceed with booking
+      // The overlap/availability check (proper interval math) and the atomic
+      // DB constraint both live in handleBookAppointment — it is the single
+      // authoritative write path. On failure it sets the error message.
       const success = await handleBookAppointment(
         date,
         selectedTime,
@@ -247,6 +216,9 @@ export default function UserDashboard() {
         setDate(startDate)
         setSelectedTime(null)
         setSelectedService(null)
+      } else {
+        // Close the confirmation so the error (rendered on the page) is visible.
+        setShowConfirmation(false)
       }
     } catch (error) {
       console.error('Error during appointment confirmation:', error)
@@ -277,6 +249,7 @@ export default function UserDashboard() {
           onConfirm={handleConfirm}
           onCancel={handleCancel}
           onBack={() => setShowConfirmation(false)}
+          isSubmitting={isBooking}
         />
       </div>
     )

@@ -1,6 +1,7 @@
 // Custom hook for booking appointments
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createBrowserClient } from '@/lib/supabase';
+import { findOverlappingAppointments } from '@/lib/appointment-conflicts';
 
 const supabase = createBrowserClient();
 
@@ -10,6 +11,11 @@ export const useAppointmentBooking = (
     setError
 ) => {
     const [showConfirmation, setShowConfirmation] = useState(false);
+    const [isBooking, setIsBooking] = useState(false);
+    // Synchronous lock: state updates are async, so a second click in the same
+    // tick would still see isBooking === false. A ref flips immediately and
+    // prevents duplicate inserts from rapid double-clicks.
+    const isBookingRef = useRef(false);
 
     const handleBookAppointment = async (
         date,
@@ -22,6 +28,13 @@ export const useAppointmentBooking = (
             setError('Molimo popunite sva obavezna polja');
             return false;
         }
+
+        // Guard against concurrent/duplicate submissions
+        if (isBookingRef.current) {
+            return false;
+        }
+        isBookingRef.current = true;
+        setIsBooking(true);
 
         try {
             // Get current user ID from session
@@ -73,17 +86,30 @@ export const useAppointmentBooking = (
                 return serviceDurations[id] || 30;
             };
 
-            // Calculate the end time of the proposed appointment
+            // Duration of the appointment being booked
             const serviceDuration = getServiceDuration(selectedService);
-            const endTime = new Date(adjustedTime);
-            endTime.setMinutes(endTime.getMinutes() + serviceDuration);
 
-            // Check for any overlapping appointments
-            const { data: existingAppointments, error: checkError } = await supabase
+            // Check for overlapping appointments across the whole day, using
+            // real interval math (start < otherEnd && end > otherStart) rather
+            // than exact start-time equality — an appointment that starts
+            // earlier and runs into this slot must also block it.
+            // Day bounds are computed in the same "local-wall-clock-as-UTC"
+            // space the rest of the app stores in.
+            const dayStartLocal = new Date(date);
+            dayStartLocal.setHours(0, 0, 0, 0);
+            const dayStart = new Date(dayStartLocal);
+            dayStart.setMinutes(dayStart.getMinutes() - dayStartLocal.getTimezoneOffset());
+
+            const dayEndLocal = new Date(date);
+            dayEndLocal.setHours(23, 59, 59, 999);
+            const dayEnd = new Date(dayEndLocal);
+            dayEnd.setMinutes(dayEnd.getMinutes() - dayEndLocal.getTimezoneOffset());
+
+            const { data: sameDay, error: checkError } = await supabase
                 .from('appointments')
-                .select('*')
-                .or(`appointment_time.gte.${adjustedTime.toISOString()},appointment_time.lt.${endTime.toISOString()}`)
-                .eq('appointment_time', adjustedTime.toISOString());
+                .select('id, appointment_time, service')
+                .gte('appointment_time', dayStart.toISOString())
+                .lte('appointment_time', dayEnd.toISOString());
 
             if (checkError) {
                 console.error('Error checking appointment availability:', checkError);
@@ -91,8 +117,17 @@ export const useAppointmentBooking = (
                 return false;
             }
 
-            // If we found any appointments at this exact time, the slot is not available
-            if (existingAppointments && existingAppointments.length > 0) {
+            const overlapping = findOverlappingAppointments(
+                (sameDay || []).map((a) => ({
+                    id: a.id,
+                    appointment_time: a.appointment_time,
+                    duration_minutes: getServiceDuration(a.service),
+                })),
+                adjustedTime.toISOString(),
+                serviceDuration,
+            );
+
+            if (overlapping.length > 0) {
                 setError('Ovaj termin više nije dostupan. Molimo odaberite drugo vrijeme.');
                 return false;
             }
@@ -113,7 +148,14 @@ export const useAppointmentBooking = (
 
             if (error) {
                 console.error('Greška prilikom dodavanja termina:', error);
-                setError(`Greška prilikom kreiranja termina: ${error.message}`);
+                // 23P01 = Postgres exclusion_violation: the appointments_no_overlap
+                // constraint rejected this insert because another booking landed in
+                // the same slot between our check and insert (concurrency guard).
+                if (error.code === '23P01') {
+                    setError('Ovaj termin je upravo rezervisan. Molimo odaberite drugo vrijeme.');
+                } else {
+                    setError(`Greška prilikom kreiranja termina: ${error.message}`);
+                }
                 return false;
             }
 
@@ -142,12 +184,16 @@ export const useAppointmentBooking = (
             console.error('Error:', error);
             setError('Došlo je do neočekivane greške. Molimo pokušajte ponovo.');
             return false;
+        } finally {
+            isBookingRef.current = false;
+            setIsBooking(false);
         }
     };
 
     return {
         showConfirmation,
         setShowConfirmation,
-        handleBookAppointment
+        handleBookAppointment,
+        isBooking
     };
 };
