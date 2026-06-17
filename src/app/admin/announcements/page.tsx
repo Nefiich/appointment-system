@@ -137,7 +137,7 @@ export default function AnnouncementsPage() {
     }
   }
 
-  const handleEdit = (announcement) => {
+  const handleEdit = (announcement: any) => {
     setStartDate(new Date(announcement.start_date))
     setEndDate(new Date(announcement.end_date))
     setDescription(announcement.description)
@@ -145,7 +145,7 @@ export default function AnnouncementsPage() {
     setCurrentAnnouncementId(announcement.id)
   }
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     try {
       const { error } = await supabase
         .from('announcements')
@@ -158,13 +158,10 @@ export default function AnnouncementsPage() {
         title: 'Success',
         description: 'Announcement deleted successfully',
       })
-      
+
+      // Refresh everything after a delete: re-pull the list and clear the form.
       await fetchAnnouncements()
-      
-      // If we're editing the announcement that was just deleted, reset the form
-      if (currentAnnouncementId === id) {
-        resetForm()
-      }
+      resetForm()
     } catch (err) {
       console.error('Error deleting announcement:', err)
       toast({
