@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { createBrowserClient } from '@/lib/supabase';
 import { findOverlappingAppointments } from '@/lib/appointment-conflicts';
+import { getServiceDuration } from '@/lib/appointment-utils';
 
 const supabase = createBrowserClient();
 
@@ -78,26 +79,10 @@ export const useAppointmentBooking = (
             console.log('Local time selected:', appointmentTime.toLocaleString());
             console.log('Adjusted time for storage:', adjustedTime.toISOString());
 
-            // Get the service duration
-            const getServiceDuration = (serviceId) => {
-                if (serviceId === null || serviceId === undefined) return 30;
-
-                const id = typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId;
-
-                const serviceDurations = {
-                    0: 10, // Brijanje
-                    1: 10, // Šišanje do kože
-                    2: 15, // Šišanje
-                    3: 20, // Fade
-                    4: 15, // Brijanje glave
-                    5: 30, // Šišanje + Brijanje
-                    6: 30, // Fade + Brijanje
-                };
-
-                return serviceDurations[id] || 30;
-            };
-
-            // Duration of the appointment being booked
+            // Duration of the appointment being booked. Uses the canonical
+            // getServiceDuration from appointment-utils — never re-declare a
+            // local duration map here (a stale copy that omitted service 7
+            // caused phantom overlaps and blocked valid bookings).
             const serviceDuration = getServiceDuration(selectedService);
             console.log('[booking] computed times + duration:', {
                 appointmentTimeLocal: appointmentTime.toString(),

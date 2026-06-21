@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { getServiceName } from '@/hooks/useTimeSlots'
+import { getServiceDuration } from '@/lib/appointment-utils'
 import { format } from 'date-fns'
 import {
   CalendarChoiceDialog,
@@ -32,26 +33,6 @@ export const UserAppointments = ({
     const startTime = new Date(appointment.appointment_time)
 
     // Calculate end time based on service duration
-    const getServiceDuration = (serviceId) => {
-      if (serviceId === null || serviceId === undefined) return 30
-
-      const id =
-        typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-
-      const serviceDurations = {
-        0: 10, // Brijanje
-        1: 10, // Šišanje do kože
-        2: 15, // Šišanje
-        3: 20, // Fade
-        4: 15, // Brijanje glave
-        5: 30, // Šišanje + Brijanje
-        6: 30, // Fade + Brijanje
-        7: 15, // Oblikovanje brade
-      }
-
-      return serviceDurations[id] || 30
-    }
-
     const endTime = new Date(startTime)
     endTime.setMinutes(
       endTime.getMinutes() + getServiceDuration(appointment.service),
@@ -99,25 +80,8 @@ export const UserAppointments = ({
     const startTime = new Date(appointment.appointment_time)
     const endTime = new Date(startTime)
 
-    const getServiceDurationLocal = (serviceId) => {
-      if (serviceId === null || serviceId === undefined) return 30
-      const id =
-        typeof serviceId === 'string' ? parseInt(serviceId, 10) : serviceId
-      const durations = {
-        0: 10,
-        1: 10,
-        2: 15,
-        3: 20,
-        4: 15,
-        5: 30,
-        6: 30,
-        7: 15,
-      }
-      return durations[id] || 30
-    }
-
     endTime.setMinutes(
-      endTime.getMinutes() + getServiceDurationLocal(appointment.service),
+      endTime.getMinutes() + getServiceDuration(appointment.service),
     )
 
     const serviceName = getServiceName(appointment.service.toString())

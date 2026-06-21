@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SideBar } from '@/components/SideBar'
 import { Button } from '@/components/ui/button'
 import { Confirmation } from '@/components/Confirmation'
@@ -131,6 +131,28 @@ export default function UserDashboard() {
     }
     getData()
   }, [user?.id])
+
+  // Refresh availability when the user selects a date. The mount fetch above
+  // is a one-time snapshot, so any appointment created afterwards (by the
+  // admin, another customer, or another tab) would otherwise leave the slot
+  // list stale — offering a time that the server-side overlap check then
+  // rejects at booking. Re-fetching on date change keeps the slots honest.
+  // Skip the first run, since the mount effect already loaded appointments.
+  const didInitialFetch = useRef(false)
+  useEffect(() => {
+    if (!didInitialFetch.current) {
+      didInitialFetch.current = true
+      return
+    }
+    if (!date) return
+    const refresh = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session) await fetchAppointments()
+    }
+    refresh()
+  }, [date])
 
   // Handle cancel confirmation
   const handleCancelConfirm = async () => {
