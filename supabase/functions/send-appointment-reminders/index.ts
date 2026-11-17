@@ -21,13 +21,9 @@
 // we must shift `now` by the project timezone offset so both sides of the
 // comparison live in the same coordinate frame.
 //
-// LOCAL_TIMEZONE_OFFSET_MIN is currently hardcoded to +120 (Europe/Sarajevo,
-// CEST, UTC+2). This is a known limitation:
-//   - During winter the project's local time is CET (UTC+1, i.e. +60). Reminders
-//     will fire at the wrong wall-clock time after the DST changeover until
-//     this constant is updated.
-//   - TODO: replace with a TZ-aware computation (e.g. via Intl APIs or a tz
-//     library) before the next DST transition.
+// The offset is computed per invocation from the IANA zone (Europe/Sarajevo)
+// via Intl, so it follows DST automatically: +60 in winter (CET), +120 in
+// summer (CEST).
 // =============================================================================
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -41,9 +37,32 @@ const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT')!;
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
-// Europe/Sarajevo offset in minutes. Hardcoded to CEST (UTC+2).
-// FIXME: handle CET (UTC+1) in winter — see header comment.
-const LOCAL_TIMEZONE_OFFSET_MIN = 120;
+const LOCAL_TIMEZONE = 'Europe/Sarajevo';
+
+// Returns the UTC offset (in minutes) of `timeZone` at the given instant,
+// e.g. 60 for CET and 120 for CEST.
+function getTimezoneOffsetMin(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const wallClockAsUtcMs = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour'),
+    get('minute'),
+    get('second'),
+  );
+  return Math.round((wallClockAsUtcMs - date.getTime()) / 60_000);
+}
 
 interface ServiceRow {
   id: number;
@@ -84,7 +103,7 @@ Deno.serve(async () => {
   // Shift `now` into the same local-wall-clock-as-UTC coordinate frame the
   // stored appointment_time values use, so windowStart/windowEnd can be
   // compared directly against them.
-  const nowWallClockMs = now.getTime() + LOCAL_TIMEZONE_OFFSET_MIN * 60_000;
+  const nowWallClockMs = now.getTime() + getTimezoneOffsetMin(now, LOCAL_TIMEZONE) * 60_000;
 
   const windowsToCheck: Array<{
     flag: 'reminder_sent_24h' | 'reminder_sent_1h';
