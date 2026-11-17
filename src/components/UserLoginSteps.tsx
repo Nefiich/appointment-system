@@ -237,8 +237,18 @@ const UserLoginSteps = () => {
           password: passwordNew,
         })
 
-        console.log('DATA: ', data, error)
+        if (error || !data.session) {
+          setError(
+            // GoTrue answers a wrong password with 400 "Invalid login credentials".
+            error?.status === 400
+              ? 'Pogrešna lozinka. Pokušajte ponovo.'
+              : 'Prijava nije uspjela. Pokušajte ponovo.',
+          )
+          setOtp(['', '', '', '', '', ''])
+          return
+        }
 
+        setError('')
         navigating = true
         setTimeout(() => {
           router.push('/rezervacije/')
