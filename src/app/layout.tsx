@@ -9,6 +9,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AdminSidebarWrapper } from '@/components/AppSideBarWrapper'
+import { OpenInBrowserPrompt } from '@/components/OpenInBrowserPrompt'
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -58,6 +59,7 @@ export default function RootLayout({
               <AdminSidebarWrapper />
               <main className="h-screen w-screen">{children}</main>
               <Toaster />
+              <OpenInBrowserPrompt />
               <ReactQueryDevtools initialIsOpen={false} />
             </SidebarProvider>
           </ReactQueryProvider>
